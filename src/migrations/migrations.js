@@ -1,4 +1,5 @@
 import configRepository from "../repositories/configRepository";
+import version_json from "../../public/version.json";
 import moment from "moment";
 
 export default {
@@ -12,6 +13,10 @@ export default {
     telemetric();
     v2_1_0();
     v2_2_0();
+    // 更新版本号，防止每次启动都触发迁移
+    let config = configRepository.load();
+    config.version = version_json.version;
+    configRepository.update(config);
   },
 };
 

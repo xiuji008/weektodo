@@ -9,7 +9,6 @@ import dbRepository from "../repositories/dbRepository";
 import s3Client from "./s3Client";
 import s3ConfigRepository from "../repositories/s3ConfigRepository";
 
-const STORES = ["todo_lists", "repeating_events", "repeating_events_by_date"];
 const SYNC_VERSION = 1;
 
 /**
@@ -78,13 +77,6 @@ function importStoreRecords(db, table, data) {
       reject(clearReq.error);
     };
   });
-}
-
-/**
- * Check if two data objects are equal (deep comparison of JSON).
- */
-function dataEqual(a, b) {
-  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 export default {

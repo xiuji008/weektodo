@@ -127,11 +127,19 @@ function importData(data) {
 }
 
 function importLocalStorageData(data) {
+  // 先备份 S3 配置，避免 clean() 后丢失
+  const s3ConfigBackup = localStorage.getItem("s3SyncConfig");
   storageRepository.clean();
   var configData = JSON.parse(data.config);
   configData.importing = true;
   data.config = JSON.stringify(configData)
   storageRepository.load_json(data);
+  // 恢复 S3 配置（如果导入的数据中没有，则用备份还原）
+  if (data.s3SyncConfig) {
+    localStorage.setItem("s3SyncConfig", data.s3SyncConfig);
+  } else if (s3ConfigBackup) {
+    localStorage.setItem("s3SyncConfig", s3ConfigBackup);
+  }
 }
 
 function importIndexedDbData(a_data, table) {

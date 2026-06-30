@@ -1,5 +1,10 @@
 <template>
-  <input class="hidden-input-for-focus" type="text" />
+  <input class="hidden-input-for-focus" type="text" autocomplete="off" />
+  <!-- 假登录表单：吸收 Chrome 自动填充，防止用户名填到任务输入框 -->
+  <div style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden" aria-hidden="true">
+    <input type="text" name="username" autocomplete="username" />
+    <input type="password" name="password" autocomplete="current-password" />
+  </div>
   <div v-show="compatible" id="app-container" class="app-container" :class="{ 'dark-theme': darkTheme }">
     <div class="hidden-mobile app-body" :style="{ zoom: `${zoom}%` }">
       <splash-screen ref="splash"></splash-screen>
@@ -165,7 +170,7 @@ import donateModal from "./views/donateModal";
 import welcomeModal from "./views/welcomeModal";
 import toDoModal from "./views/toDoModal/toDoModal";
 import tipsModal from "./views/tipsModal";
-import { Modal, Toast } from "bootstrap";
+import { Toast } from "bootstrap";
 import migrations from "./migrations/migrations";
 import version_json from "../public/version.json";
 import isElectron from "is-electron";
@@ -214,7 +219,7 @@ export default {
       initialLoadCompleted: false,
       initialListToLoad: 0,
       initialListLoaded: 0,
-      _s3PushTimer: null,
+      s3PushTimer: null,
     };
   },
   beforeCreate() {
@@ -341,17 +346,11 @@ export default {
         this.$refs.splash.hideSplash();
       }
       this.checksOnLoadApp();
+      // 跳过首次启动的欢迎向导，直接标记为非首次打开
       if (this.$store.getters.config.firstTimeOpen) {
-        this.showWelcomeModal();
+        this.$store.commit("updateConfig", { val: false, key: "firstTimeOpen" });
+        configRepository.update(this.$store.getters.config);
       }
-    },
-    showWelcomeModal: function () {
-      let modal = new Modal(document.getElementById("welcomeModal"), {
-        backdrop: "static",
-      });
-      modal.show();
-      this.$store.commit("updateConfig", { val: false, key: "firstTimeOpen" });
-      configRepository.update(this.$store.getters.config);
     },
     compatible: function () {
       return window.IndexedDB;
@@ -534,11 +533,14 @@ export default {
       }
     },
     s3AutoSyncPull: function () {
+      // 防止恢复数据后 location.reload() 导致无限刷新循环
+      if (sessionStorage.getItem("_s3PullDone")) return;
       const s3Config = s3ConfigRepository.load();
       if (!s3Config.autoSync || !s3ConfigRepository.isConfigured()) return;
       // Pull from cloud — if data was restored, reload to show it
       s3Sync.autoSyncOnStart().then((restored) => {
         if (restored) {
+          sessionStorage.setItem("_s3PullDone", "1");
           console.log("S3 auto-sync: data pulled from cloud, reloading...");
           location.reload();
         }
@@ -563,8 +565,8 @@ export default {
       });
     },
     s3DebouncedPush: function () {
-      if (this._s3PushTimer) clearTimeout(this._s3PushTimer);
-      this._s3PushTimer = setTimeout(() => {
+      if (this.s3PushTimer) clearTimeout(this.s3PushTimer);
+      this.s3PushTimer = setTimeout(() => {
         s3Sync.autoSyncPush().catch((err) => {
           console.log("S3 auto-sync push failed:", err);
         });

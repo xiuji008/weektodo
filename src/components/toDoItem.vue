@@ -6,12 +6,8 @@
         <div class="d-flex">
           <span class="noselect item-text" :class="{ 'checked-todo': toDo.checked, 'compact-view': compactView }"
             style="flex-grow: 1">
-            <span v-if="toDo.color != 'none'" class="cicle-icon" :style="'color: ' + toDo.color" :class="{
-              'bi-check-circle-fill': toDo.checked,
-              'bi-circle-fill': !toDo.checked,
-            }"></span>
-            <span v-else class="cicle-icon"
-              :class="{ 'bi-check-circle': toDo.checked, 'bi-circle': !toDo.checked, }"></span>
+            <span class="status-dot" :class="'status-dot-' + todoStatus"></span>
+            <span v-if="toDo.emoji" class="todo-emoji">{{ toDo.emoji }}</span>
             <span v-html="todoText"></span>
             <span v-if="!compactView" class="item-time mx-2" :class="{ 'checked-todo': toDo.checked }"> {{
                 timeFormat(toDo.time)
@@ -116,7 +112,16 @@ export default {
     },
     notificationIndicator: function () {
       return this.$store.getters.config.notificationIndicator;
-    }
+    },
+    todoStatus: function () {
+      if (this.toDo.status) return this.toDo.status;
+      return this.toDo.checked ? "done" : "pending";
+    },
+    firstChar: function () {
+      const text = (this.toDo.text || "").trim();
+      if (!text) return "?";
+      return text.charAt(0).toUpperCase();
+    },
   }
 };
 </script>
@@ -254,9 +259,34 @@ export default {
   margin-right: 5px;
 }
 
+.todo-emoji {
+  font-size: 1rem;
+  margin-right: 4px;
+  line-height: 1;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  min-width: 10px;
+  border-radius: 50%;
+  margin-right: 5px;
+  flex-shrink: 0;
+}
+.status-dot-pending { background-color: #dc3545; }
+.status-dot-in_progress { background-color: #0d6efd; }
+.status-dot-done { background-color: #28a745; }
+.status-dot-cancelled { background-color: #fd7e14; }
+
 .bi-check-circle-fill,
 .bi-check-circle {
   opacity: 0.7;
+}
+
+.checked-green {
+  color: #28a745;
+  opacity: 1;
 }
 
 .todo-item-container.compact-view {

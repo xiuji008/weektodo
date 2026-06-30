@@ -44,7 +44,9 @@ function create_todo(vue, list_id, text, checked, desc = "", subTaskList = [], c
         tags: [],
         time: time,
         alarm: false,
-        repeatingEvent: null
+        repeatingEvent: null,
+        emoji: "",
+        status: checked ? "done" : "pending",
     }
     vue.$store.commit('addTodo', newTodo);
     toDoListRepository.update(list_id, vue.$store.getters.todoLists[list_id]);

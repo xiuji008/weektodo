@@ -22,7 +22,7 @@
       :class="{ 'fake-drag-hover': fakeItemsDragHover }">
       <div class="todo-item-container">
         <input class="todo-input new-todo-input" type="text" ref="newToDoInput" v-model="newToDo.text" @blur="addToDo()"
-          @keyup.enter="addToDo()" @keyup.esc="cancelAdd()" />
+          @keyup.enter="addToDo()" @keyup.esc="cancelAdd()" autocomplete="nope" name="task-input" />
       </div>
       <div class="fake-lines" :class="{ 'custom-list': customTodoList }" @click="$refs.newToDoInput.focus()"></div>
     </div>
@@ -74,10 +74,6 @@ export default {
   unmounted() {
     window.removeEventListener("resize", this.setTodoListHeight);
   },
-  beforeCreate() {
-    let listId = this.id;
-    this.$store.commit("loadTodoLists", { todoListId: listId, todoList: [] });
-  },
   methods: {
     addToDo: function () {
       if (this.newToDo.text != "") {
@@ -93,6 +89,8 @@ export default {
           time: null,
           alarm: false,
           repeatingEvent: null,
+          emoji: "",
+          status: "pending",
         };
         this.$store.commit("addTodo", newTodo);
         this.updateTodoList(this.id, this.$store.getters.todoLists[this.id]);

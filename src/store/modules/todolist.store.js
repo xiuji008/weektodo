@@ -38,6 +38,18 @@ const mutations = {
     state.todoLists[obj.toDoListId][obj.index].repeatingEvent = null;
     state.todoLists[obj.toDoListId][obj.index].text = obj.text;
   },
+  updateTodoEmoji(state, obj) {
+    if (state.todoLists[obj.toDoListId] && state.todoLists[obj.toDoListId][obj.index]) {
+      state.todoLists[obj.toDoListId][obj.index].emoji = obj.emoji || "";
+    }
+  },
+  updateTodoStatus(state, obj) {
+    const todo = state.todoLists[obj.toDoListId] && state.todoLists[obj.toDoListId][obj.index];
+    if (!todo) return;
+    todo.status = obj.status;
+    // 同步 checked 字段，保持向后兼容
+    todo.checked = (obj.status === "done");
+  },
   removeTodo(state, obj) {
     state.todoLists[obj.toDoListId].splice(obj.index, 1);
   },

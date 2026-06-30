@@ -12,6 +12,8 @@ export default {
       if (!re_by_date[re_id]) {
         var new_instanced_event = JSON.parse(JSON.stringify(re.data));
         new_instanced_event.listId = listId;
+        if (new_instanced_event.emoji === undefined) new_instanced_event.emoji = "";
+        if (!new_instanced_event.status) new_instanced_event.status = "pending";
         vue.$store.commit("addTodo", new_instanced_event);
 
         if(vue.$store.getters.config.autoReorderTasks){

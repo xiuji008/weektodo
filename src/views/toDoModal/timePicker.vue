@@ -1,5 +1,6 @@
 <template>
   <div
+    id="timeDropDown"
     class="header-menu-icons"
     type="button"
     data-bs-toggle="dropdown"
@@ -20,7 +21,8 @@
       <input
         type="time"
         v-model="selectedTime"
-        @blur="selectTime(selectedTime)"
+        @change="selectTime(selectedTime)"
+        @input="selectTime(selectedTime)"
       />
       <i
         class="header-menu-icons bi-trash"
@@ -76,17 +78,17 @@ input[type="time"] {
   background-color: transparent;
   border: none;
   font-size: 16px;
-  width: 130px;
+  width: 110px;
   outline: unset;
   height: 40px;
+  cursor: pointer;
 }
 
 input[type="time"]::-webkit-datetime-edit-text {
-  padding: 19px 2px;
+  padding: 0 2px;
 }
 
 input[type="time"]::-webkit-datetime-edit-fields-wrapper {
-  /*display: block;*/
   padding: 8px 2px 8px 2px;
   border: none;
 }
@@ -97,9 +99,10 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   background-color: transparent;
   border: 2px solid transparent;
   border-radius: 5px;
-  padding: 5px;
-  min-width: 80px;
-  width: 80px;
+  padding: 3px;
+  min-width: 20px;
+  width: 20px;
+  text-align: center;
   color: #494949;
 
   .dark-theme & {
@@ -109,7 +112,9 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 
 input[type="time"]::-webkit-calendar-picker-indicator {
   background: none;
-  display: none;
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0.6;
 }
 
 input[type="time"]::-webkit-datetime-edit-hour-field:hover,

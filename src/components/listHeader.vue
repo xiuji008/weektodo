@@ -126,6 +126,7 @@ export default {
       toDoListRepository.update(todoListId, TodoList);
     },
     allTodoChecked: function () {
+      if (!this.toDoList || this.toDoList.length === 0) return true;
       let allChecked = true;
       this.toDoList.forEach(function (todo) {
         if (!todo.checked) {
@@ -162,6 +163,7 @@ export default {
       });
     },
     sortItems: function () {
+      if (!this.toDoList) return;
       toDoListRepository.update(this.id, tasksHelper.reorderTasksList(this.toDoList));
     },
     clearList: function () {
@@ -173,6 +175,7 @@ export default {
       toast.show();
     },
     todoListToString: function () {
+      if (!this.toDoList) return "";
       return this.toDoList.map((x) => {
         let task = `- ${x.text}`;
         if (x.time) task += ` [${x.time}]`;
