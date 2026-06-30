@@ -181,6 +181,8 @@ import ReorderCustomListsModal from "./views/ReorderCustomListsModal.vue";
 import toastMessage from "./components/toastMessage";
 import activeToDo from "./components/activeToDo.vue";
 import tasksHelper from "./helpers/tasksHelper";
+import s3Sync from "./helpers/s3Sync";
+import s3ConfigRepository from "./repositories/s3ConfigRepository";
 
 export default {
   name: "App",
@@ -212,6 +214,7 @@ export default {
       initialLoadCompleted: false,
       initialListToLoad: 0,
       initialListLoaded: 0,
+      _s3PushTimer: null,
     };
   },
   beforeCreate() {
@@ -406,6 +409,10 @@ export default {
             this.$store.commit("updateConfig", { val: moment().format("YYYYMMDD"), key: "lastDayOpened" });
             configRepository.update(this.$store.getters.config);
           }
+          // S3 auto-sync: pull from cloud on app start
+          this.s3AutoSyncPull();
+          // S3 auto-sync: subscribe to data changes for push
+          this.s3SetupAutoPush();
         }
       }
     },
@@ -525,6 +532,43 @@ export default {
       } else {
         this.checkVersion();
       }
+    },
+    s3AutoSyncPull: function () {
+      const s3Config = s3ConfigRepository.load();
+      if (!s3Config.autoSync || !s3ConfigRepository.isConfigured()) return;
+      // Pull from cloud — if data was restored, reload to show it
+      s3Sync.autoSyncOnStart().then((restored) => {
+        if (restored) {
+          console.log("S3 auto-sync: data pulled from cloud, reloading...");
+          location.reload();
+        }
+      }).catch((err) => {
+        console.log("S3 auto-sync pull failed:", err);
+      });
+    },
+    s3SetupAutoPush: function () {
+      const s3Config = s3ConfigRepository.load();
+      if (!s3Config.autoSync || !s3ConfigRepository.isConfigured()) return;
+      // Subscribe to Vuex mutations that change todo data
+      this.$store.subscribe((mutation) => {
+        const dataMutations = [
+          "addTodo", "updateTodo", "removeTodo", "insertTodo", "checkTodo",
+          "moveTodoToEnd", "checkAllItems", "moveUndoneItems", "clearTodoList",
+          "newCustomTodoList", "removeCustomTodoList", "updateCustomTodoList",
+          "loadTodoLists",
+        ];
+        if (dataMutations.includes(mutation.type)) {
+          this.s3DebouncedPush();
+        }
+      });
+    },
+    s3DebouncedPush: function () {
+      if (this._s3PushTimer) clearTimeout(this._s3PushTimer);
+      this._s3PushTimer = setTimeout(() => {
+        s3Sync.autoSyncPush().catch((err) => {
+          console.log("S3 auto-sync push failed:", err);
+        });
+      }, 3000); // 3s debounce
     },
     showNewVersionToast: function (response) {
       if (response.data.version != version_json.version) {

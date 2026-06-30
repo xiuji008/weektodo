@@ -39,6 +39,11 @@
               </button>
             </li>
             <li class="nav-item" role="presentation">
+              <button class="nav-link" id="config-sync-tab" data-bs-toggle="tab" data-bs-target="#config-sync" role="tab">
+                Sync
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
               <button class="nav-link" id="config-language-tab" data-bs-toggle="tab" data-bs-target="#config-language"
                 role="tab">
                 Language
@@ -297,6 +302,83 @@
                 </div>
               </div>
             </div>
+            <div class="tab-pane fade" id="config-sync">
+              <div class="d-flex flex-column mt-2 h-100">
+                <p class="text-muted small mb-3">{{ $t("settings.s3SyncDesc") }}</p>
+
+                <div class="mb-2">
+                  <label class="form-label small">{{ $t("settings.endpoint") }}</label>
+                  <input type="text" class="form-control form-control-sm mb-2"
+                    v-model="s3Config.endpoint" :placeholder=" 'https://s3.amazonaws.com' " />
+                </div>
+
+                <div class="row mb-2">
+                  <div class="col-5">
+                    <label class="form-label small">{{ $t("settings.region") }}</label>
+                    <input type="text" class="form-control form-control-sm" v-model="s3Config.region" placeholder="us-east-1" />
+                  </div>
+                  <div class="col-7">
+                    <label class="form-label small">{{ $t("settings.bucket") }}</label>
+                    <input type="text" class="form-control form-control-sm" v-model="s3Config.bucket" placeholder="my-bucket" />
+                  </div>
+                </div>
+
+                <div class="mb-2">
+                  <label class="form-label small">{{ $t("settings.objectKey") }}</label>
+                  <input type="text" class="form-control form-control-sm" v-model="s3Config.objectKey" placeholder="weektodo/backup.wtdb" />
+                </div>
+
+                <div class="mb-2">
+                  <label class="form-label small">{{ $t("settings.accessKeyId") }}</label>
+                  <input type="text" class="form-control form-control-sm" v-model="s3Config.accessKeyId" autocomplete="off" />
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label small">{{ $t("settings.secretAccessKey") }}</label>
+                  <input type="password" class="form-control form-control-sm" v-model="s3Config.secretAccessKey" autocomplete="off" />
+                </div>
+
+                <div class="form-check form-switch d-flex px-1 mb-3 justify-content-between">
+                  <label class="form-check-label small" for="autoSyncSwitch">{{ $t("settings.autoSync") }}</label>
+                  <input class="form-check-input" type="checkbox" id="autoSyncSwitch" v-model="s3Config.autoSync" @change="saveS3Config" />
+                </div>
+
+                <div class="d-flex gap-2 mb-3">
+                  <button type="button" class="btn btn-sm btn-outline-primary" @click="saveS3Config">
+                    <i class="bi-check2 me-1"></i>{{ $t("settings.saveS3Config") }}
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" @click="testS3Connection" :disabled="s3Busy">
+                    <i class="bi-wifi me-1"></i>{{ $t("settings.testConnection") }}
+                  </button>
+                </div>
+
+                <div v-if="s3StatusMessage" class="alert py-2 px-3 mb-2 small" :class="s3StatusClass" role="alert">
+                  {{ s3StatusMessage }}
+                </div>
+
+                <div class="horizontal-divider mb-3"></div>
+
+                <div class="d-flex gap-2 mb-2">
+                  <button type="button" class="btn btn-sm py-1 px-2 border" style="flex: 1" @click="syncToS3" :disabled="s3Busy || !s3Ready">
+                    <i class="bi-cloud-arrow-up me-1"></i>{{ $t("settings.syncNow") }}
+                  </button>
+                  <button type="button" class="btn btn-sm py-1 px-2 border" style="flex: 1" @click="restoreFromS3" :disabled="s3Busy || !s3Ready">
+                    <i class="bi-cloud-arrow-down me-1"></i>{{ $t("settings.restoreNow") }}
+                  </button>
+                </div>
+
+                <div class="small text-muted" v-if="s3Config.lastSyncAt">
+                  {{ $t("settings.s3LastSync") }}: {{ formatSyncTime(s3Config.lastSyncAt) }}
+                </div>
+                <div class="small text-muted" v-else>
+                  {{ $t("settings.s3NeverSynced") }}
+                </div>
+
+                <div class="small text-muted mt-2">
+                  <i class="bi-shield-check me-1"></i>{{ $t("settings.s3PrivacyNote") }}
+                </div>
+              </div>
+            </div>
             <div class="tab-pane fade" id="config-language">
               <div class="d-flex flex-column mt-2 h-100">
                 <label for="language" class="form-label">{{ $t("settings.language") }}:</label>
@@ -340,6 +422,8 @@ import exportTool from "../helpers/exportTool";
 import linkList from "../components/linkList";
 import configList from "./configList";
 import notifications from "../helpers/notifications";
+import s3Sync from "../helpers/s3Sync";
+import s3ConfigRepository from "../repositories/s3ConfigRepository";
 import { Modal } from "bootstrap";
 
 export default {
@@ -351,7 +435,25 @@ export default {
   data() {
     return {
       configData: this.$store.getters.config,
+      s3Config: s3ConfigRepository.load(),
+      s3Busy: false,
+      s3StatusMessage: "",
+      s3StatusClass: "",
     };
+  },
+  computed: {
+    configLinks: function () {
+      return configList.configList(this);
+    },
+    s3Ready: function () {
+      return !!(this.s3Config.endpoint && this.s3Config.bucket &&
+        this.s3Config.accessKeyId && this.s3Config.secretAccessKey);
+    },
+    watch: {
+      configProp: function (newVal) {
+        this.configData = newVal;
+      }
+    }
   },
   methods: {
     changeConfig: function (key, val) {
@@ -432,16 +534,68 @@ export default {
         this.$store.getters.config.notificationSound
       );
     },
-  },
-  computed: {
-    configLinks: function () {
-      return configList.configList(this);
-    },
-    watch: {
-      configProp: function (newVal) {
-        this.configData = newVal;
+    saveS3Config: function () {
+      if (!this.s3Ready) {
+        this.setS3Status(this.$t("settings.s3ConfigError"), "alert-danger");
+        return;
       }
-    }
+      s3ConfigRepository.save(this.s3Config);
+      this.setS3Status(this.$t("settings.s3ConfigSaved"), "alert-success");
+    },
+    testS3Connection: async function () {
+      if (!this.s3Ready) {
+        this.setS3Status(this.$t("settings.s3ConfigError"), "alert-danger");
+        return;
+      }
+      this.s3Busy = true;
+      this.setS3Status(this.$t("settings.s3Testing"), "alert-info");
+      // Save config before testing
+      s3ConfigRepository.save(this.s3Config);
+      const result = await s3Sync.testConnection();
+      this.s3Busy = false;
+      if (result.ok) {
+        this.setS3Status(this.$t("settings.s3TestSuccess"), "alert-success");
+      } else {
+        this.setS3Status(this.$t("settings.s3TestFailed") + ": " + (result.error || ""), "alert-danger");
+      }
+    },
+    syncToS3: async function () {
+      this.s3Busy = true;
+      this.setS3Status(this.$t("settings.s3Syncing"), "alert-info");
+      const result = await s3Sync.syncToS3();
+      this.s3Busy = false;
+      if (result.ok) {
+        this.s3Config = s3ConfigRepository.load();
+        this.setS3Status(this.$t("settings.s3SyncSuccess"), "alert-success");
+      } else {
+        this.setS3Status(this.$t("settings.s3SyncFailed") + ": " + (result.error || ""), "alert-danger");
+      }
+    },
+    restoreFromS3: async function () {
+      this.s3Busy = true;
+      this.setS3Status(this.$t("settings.s3Restoring"), "alert-info");
+      const result = await s3Sync.restoreFromS3();
+      this.s3Busy = false;
+      if (result.ok) {
+        this.setS3Status(this.$t("settings.s3RestoreSuccess"), "alert-success");
+        // Only reload to refresh todo data — config stays local, no welcome screen
+        setTimeout(function () { location.reload(); }, 1500);
+      } else {
+        this.setS3Status(this.$t("settings.s3RestoreFailed") + ": " + (result.error || ""), "alert-danger");
+      }
+    },
+    setS3Status: function (message, alertClass) {
+      this.s3StatusMessage = message;
+      this.s3StatusClass = alertClass;
+    },
+    formatSyncTime: function (isoString) {
+      try {
+        const d = new Date(isoString);
+        return d.toLocaleString();
+      } catch (e) {
+        return isoString;
+      }
+    },
   },
 };
 </script>
