@@ -44,6 +44,12 @@
               </button>
             </li>
             <li class="nav-item" role="presentation">
+              <button class="nav-link" id="config-ai-tab" data-bs-toggle="tab" data-bs-target="#config-ai"
+                role="tab">
+                AI
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
               <button class="nav-link" id="config-language-tab" data-bs-toggle="tab" data-bs-target="#config-language"
                 role="tab">
                 Language
@@ -379,6 +385,85 @@
                 </div>
               </div>
             </div>
+            <div class="tab-pane fade" id="config-ai">
+              <div class="d-flex flex-column mt-2 h-100">
+                <p class="text-muted small mb-3">{{ $t("settings.aiDesc") }}</p>
+
+                <div class="mb-2">
+                  <label class="form-label small">{{ $t("settings.aiEndpoint") }}</label>
+                  <input type="text" class="form-control form-control-sm"
+                    v-model="aiConfig.endpoint" placeholder="https://api.openai.com/v1/chat/completions" />
+                </div>
+
+                <div class="mb-2">
+                  <label class="form-label small">{{ $t("settings.aiApiKey") }}</label>
+                  <input type="password" class="form-control form-control-sm"
+                    v-model="aiConfig.apiKey" autocomplete="off" />
+                </div>
+
+                <div class="mb-2">
+                  <label class="form-label small">{{ $t("settings.aiModel") }}</label>
+                  <input type="text" class="form-control form-control-sm"
+                    v-model="aiConfig.model" placeholder="gpt-4o-mini" />
+                </div>
+
+                <hr class="my-2" />
+                <div class="text-muted small mb-2">{{ $t("settings.aiDialogSettings") }}</div>
+
+                <div class="form-check form-switch d-flex px-1 mb-2 justify-content-between">
+                  <label class="form-check-label small" for="aiCarryContext">
+                    {{ $t("settings.aiCarryContext") }}
+                    <i class="bi-info-circle ms-1" style="opacity:.6;cursor:help"
+                      :title="$t('settings.aiCarryContextHint')"></i>
+                  </label>
+                  <input class="form-check-input" type="checkbox" id="aiCarryContext"
+                    v-model="aiConfig.carryContext" />
+                </div>
+
+                <div class="d-flex align-items-center mb-2" v-show="aiConfig.carryContext">
+                  <label class="form-label small me-2 mb-0">{{ $t("settings.aiContextRounds") }}</label>
+                  <input type="number" min="1" max="20" class="form-control form-control-sm"
+                    style="width:80px" v-model.number="aiConfig.contextRounds" />
+                  <span class="form-text ms-2 small">{{ $t("settings.aiContextRoundsHint") }}</span>
+                </div>
+
+                <hr class="my-2" />
+                <div class="text-muted small mb-2">{{ $t("settings.aiSystemPrompt") }}</div>
+
+                <div class="mb-2">
+                  <textarea class="form-control form-control-sm ai-prompt-textarea" rows="8"
+                    v-model="aiConfig.systemPrompt"></textarea>
+                </div>
+
+                <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+                  <span class="small text-muted">{{ $t("settings.aiPresets") }}</span>
+                  <button type="button" v-for="(preset, key) in aiPresets" :key="key"
+                    class="btn btn-sm btn-outline-secondary py-0 px-2"
+                    @click="applyAiPreset(key)">{{ preset.name }}</button>
+                </div>
+
+                <div class="d-flex gap-2 mb-2">
+                  <button type="button" class="btn btn-sm py-1 px-3 border" style="flex:1" @click="saveAiConfig">
+                    <i class="bi-check2 me-1"></i>{{ $t("settings.saveAiConfig") }}
+                  </button>
+                  <button type="button" class="btn btn-sm py-1 px-3 border" @click="testAiConnection" :disabled="aiBusy">
+                    <i class="bi-wifi me-1"></i>{{ $t("settings.testConnection") }}
+                  </button>
+                  <button type="button" class="btn btn-sm py-1 px-3 border"
+                    @click="restoreAiDefaultPrompt" :title="$t('settings.aiRestoreDefaultPrompt')">
+                    <i class="bi-arrow-counterclockwise me-1"></i>{{ $t("settings.aiRestoreDefault") }}
+                  </button>
+                </div>
+
+                <div v-if="aiStatusMessage" class="alert py-2 px-3 mb-2 small" :class="aiStatusClass" role="alert">
+                  {{ aiStatusMessage }}
+                </div>
+
+                <div class="small text-muted mt-2">
+                  <i class="bi-shield-check me-1"></i>{{ $t("settings.aiPrivacyNote") }}
+                </div>
+              </div>
+            </div>
             <div class="tab-pane fade" id="config-language">
               <div class="d-flex flex-column mt-2 h-100">
                 <label for="language" class="form-label">{{ $t("settings.language") }}:</label>
@@ -424,6 +509,8 @@ import configList from "./configList";
 import notifications from "../helpers/notifications";
 import s3Sync from "../helpers/s3Sync";
 import s3ConfigRepository from "../repositories/s3ConfigRepository";
+import aiConfigRepository from "../repositories/aiConfigRepository";
+import aiService from "../helpers/aiService";
 import { Modal } from "bootstrap";
 
 export default {
@@ -439,6 +526,10 @@ export default {
       s3Busy: false,
       s3StatusMessage: "",
       s3StatusClass: "",
+      aiConfig: aiConfigRepository.load(),
+      aiBusy: false,
+      aiStatusMessage: "",
+      aiStatusClass: "",
     };
   },
   computed: {
@@ -448,6 +539,12 @@ export default {
     s3Ready: function () {
       return !!(this.s3Config.endpoint && this.s3Config.bucket &&
         this.s3Config.accessKeyId && this.s3Config.secretAccessKey);
+    },
+    aiPresets: function () {
+      return aiConfigRepository.PRESETS;
+    },
+    aiReady: function () {
+      return !!(this.aiConfig.endpoint && this.aiConfig.apiKey && this.aiConfig.model);
     },
     watch: {
       configProp: function (newVal) {
@@ -595,6 +692,43 @@ export default {
       } catch (e) {
         return isoString;
       }
+    },
+    saveAiConfig: function () {
+      if (!this.aiReady) {
+        this.setAiStatus(this.$t("settings.aiConfigError"), "alert-danger");
+        return;
+      }
+      aiConfigRepository.save(this.aiConfig);
+      this.setAiStatus(this.$t("settings.aiConfigSaved"), "alert-success");
+    },
+    applyAiPreset: function (key) {
+      aiConfigRepository.applyPreset(key);
+      this.aiConfig = aiConfigRepository.load();
+      this.setAiStatus(this.$t("settings.aiPresetApplied", [this.aiPresets[key].name]), "alert-success");
+    },
+    testAiConnection: async function () {
+      if (!this.aiReady) {
+        this.setAiStatus(this.$t("settings.aiConfigError"), "alert-danger");
+        return;
+      }
+      this.aiBusy = true;
+      this.setAiStatus(this.$t("settings.aiTesting"), "alert-info");
+      aiConfigRepository.save(this.aiConfig);
+      const result = await aiService.testConnection();
+      this.aiBusy = false;
+      if (result.ok) {
+        this.setAiStatus(this.$t("settings.aiTestSuccess"), "alert-success");
+      } else {
+        this.setAiStatus(this.$t("settings.aiTestFailed") + ": " + (result.error || ""), "alert-danger");
+      }
+    },
+    restoreAiDefaultPrompt: function () {
+      this.aiConfig.systemPrompt = aiConfigRepository.DEFAULT_PROMPT;
+      this.setAiStatus(this.$t("settings.aiPromptRestored"), "alert-success");
+    },
+    setAiStatus: function (message, alertClass) {
+      this.aiStatusMessage = message;
+      this.aiStatusClass = alertClass;
     },
   },
 };

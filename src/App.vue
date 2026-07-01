@@ -13,6 +13,12 @@
       <div class="h-100 d-flex flex-column">
         <div
           v-show="showCalendar"
+          class="week-header-container"
+        >
+          <span class="week-number-label">{{ currentWeekDisplay }}</span>
+        </div>
+        <div
+          v-show="showCalendar"
           class="todo-lists-container"
           :style="resizableStyle"
           ref="calendarContainer"
@@ -29,6 +35,7 @@
               :key="date"
               :id="date"
               :showCustomList="showCustomList"
+              :columnsProp="7"
               @todo-list-mounted="todoListMounted"
             >
             </to-do-list>
@@ -68,6 +75,12 @@
             ></i>
           </div>
         </div>
+
+        <weekly-summary
+          v-show="showCustomList && showCalendar"
+          :weekLabel="currentWeekLabel"
+          :weekNumber="currentWeekNum"
+        ></weekly-summary>
 
         <div
           v-show="showCustomList"
@@ -188,6 +201,7 @@ import activeToDo from "./components/activeToDo.vue";
 import tasksHelper from "./helpers/tasksHelper";
 import s3Sync from "./helpers/s3Sync";
 import s3ConfigRepository from "./repositories/s3ConfigRepository";
+import weeklySummary from "./components/weeklySummary.vue";
 
 export default {
   name: "App",
@@ -209,6 +223,7 @@ export default {
     clearListModal,
     toastMessage,
     activeToDo,
+    weeklySummary,
   },
   data() {
     return {
@@ -237,11 +252,11 @@ export default {
 
     this.$store.dispatch("loadAllRepeatingEvent").then(
       function () {
-        let totalDaysCount = parseInt(this.$store.getters.config.columns) + 2;
+        let totalDaysCount = 7;
         let totalCustomListCount = this.$store.getters.cTodoListIds.length;
         this.initialListToLoad = totalDaysCount + totalCustomListCount;
         this.deleteOldRepeatingEvents();
-        this.selected_date = moment().format("YYYYMMDD");
+        this.selected_date = moment().startOf('isoWeek').format("YYYYMMDD");
         this.$nextTick(() => {
           this.weekResetScroll();
         });
@@ -278,22 +293,12 @@ export default {
   },
   methods: {
     weekMoveLeft: function () {
-      this.selected_date = moment(this.selected_date).subtract(1, "d").format("YYYYMMDD");
-      this.$refs.weekListContainer.scrollLeft = this.todoListWidth() * 2;
-      this.$refs.weekListContainer.scroll({
-        left: this.$refs.weekListContainer.scrollLeft - this.todoListWidth(),
-        top: 0,
-        behavior: "smooth",
-      });
+      this.selected_date = moment(this.selected_date).subtract(7, "d").format("YYYYMMDD");
+      this.$refs.weekListContainer.scrollLeft = 0;
     },
     weekMoveRight: function () {
-      this.selected_date = moment(this.selected_date).add(1, "d").format("YYYYMMDD");
+      this.selected_date = moment(this.selected_date).add(7, "d").format("YYYYMMDD");
       this.$refs.weekListContainer.scrollLeft = 0;
-      this.$refs.weekListContainer.scroll({
-        left: this.$refs.weekListContainer.scrollLeft + this.todoListWidth(),
-        top: 0,
-        behavior: "smooth",
-      });
     },
     deleteOldRepeatingEvents: function () {
       for (const event of Object.entries(this.$store.getters.repeatingEventList)) {
@@ -304,7 +309,9 @@ export default {
       }
     },
     weekResetScroll: function () {
-      this.$refs.weekListContainer.scrollLeft = this.todoListWidth();
+      // 滚动到当天所在的列（isoWeekday: 1=周一, 7=周日）
+      const todayIndex = moment().isoWeekday() - 1;
+      this.$refs.weekListContainer.scrollLeft = todayIndex * this.todoListWidth();
     },
     customMoveRight: function () {
       this.$refs.customListContainer.scrollLeft =
@@ -600,20 +607,28 @@ export default {
   computed: {
     dates_array: function () {
       if (!this.selected_date) return [];
-      var dates_array = [moment(this.selected_date).subtract(1, "d").format("YYYYMMDD"), this.selected_date];
-
-      for (let i = 1; i < this.columns; i++) {
+      var dates_array = [];
+      for (let i = 0; i < 7; i++) {
         dates_array.push(moment(this.selected_date).add(i, "d").format("YYYYMMDD"));
       }
-
-      if (this.$store.getters.config.startCalendarYesterday) {
-        dates_array.unshift(moment(this.selected_date).subtract(2, "d").format("YYYYMMDD"));
-      } else {
-        dates_array.push(moment(this.selected_date).add(this.columns, "d").format("YYYYMMDD"));
-      }
-
       this.$store.commit("updateSelectedDates", dates_array);
       return dates_array;
+    },
+    currentWeekLabel: function () {
+      if (!this.selected_date) return "";
+      const weekNum = moment(this.selected_date).isoWeek();
+      const year = moment(this.selected_date).isoWeekYear();
+      return `${year}_W${weekNum}`;
+    },
+    currentWeekDisplay: function () {
+      if (!this.selected_date) return "";
+      const weekNum = moment(this.selected_date).isoWeek();
+      const year = moment(this.selected_date).isoWeekYear();
+      return `${this.$t("ui.week")} ${weekNum} (${year})`;
+    },
+    currentWeekNum: function () {
+      if (!this.selected_date) return 0;
+      return moment(this.selected_date).isoWeek();
     },
     showCustomList: function () {
       return this.$store.getters.config.customList;
@@ -763,6 +778,25 @@ body {
 
 .full-screen .todo-slider {
   margin-top: 20px;
+}
+
+/* Week header */
+.week-header-container {
+  text-align: center;
+  padding-top: 6px;
+  padding-bottom: 2px;
+  margin-top: 4px;
+}
+
+.week-number-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #888;
+  letter-spacing: 0.5px;
+}
+
+.dark-theme .week-number-label {
+  color: #8b949e;
 }
 
 /*----------------Dark Theme------------------*/

@@ -48,6 +48,7 @@ export default {
     customTodoList: { required: false, default: false, type: Boolean },
     cTodoListIndex: { required: false, type: Number },
     showCustomList: { required: false, type: Boolean },
+    columnsProp: { required: false, type: Number },
   },
   data() {
     return {
@@ -174,6 +175,7 @@ export default {
       return this.$store.getters.todoLists[this.id];
     },
     columns: function () {
+      if (this.columnsProp) return this.columnsProp;
       if (this.customTodoList)
         return this.$store.getters.config.customColumns;
         

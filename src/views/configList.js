@@ -38,6 +38,12 @@ export default {
               link: "config-sync-tab",
             },
             {
+              name: "AI",
+              ico: "bi-stars",
+              linktype: "tagId",
+              link: "config-ai-tab",
+            },
+            {
               name: vue.$t('settings.language'),
               ico: "bi-globe2",
               linktype: "tagId",

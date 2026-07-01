@@ -8,6 +8,8 @@
 import dbRepository from "../repositories/dbRepository";
 import s3Client from "./s3Client";
 import s3ConfigRepository from "../repositories/s3ConfigRepository";
+import customToDoListIdsRepository from "../repositories/customToDoListIdsRepository";
+import weeklySummaryRepository from "../repositories/weeklySummaryRepository";
 
 const SYNC_VERSION = 1;
 
@@ -92,6 +94,8 @@ export default {
       todoLists: {},
       repeating_events: {},
       repeating_events_by_date: {},
+      customTodoListIds: [],
+      weeklySummaries: {},
     };
 
     const db = await openDb();
@@ -102,6 +106,12 @@ export default {
       "repeating_events_by_date"
     );
     db.close();
+
+    // 收集自定义列表元数据（存储在 localStorage 中）
+    data.customTodoListIds = customToDoListIdsRepository.load();
+
+    // 收集周总结数据（存储在 localStorage 中）
+    data.weeklySummaries = weeklySummaryRepository.loadAll();
 
     return data;
   },
@@ -173,6 +183,16 @@ export default {
         );
       }
       db.close();
+
+      // 恢复自定义列表元数据（存储在 localStorage 中）
+      if (data.customTodoListIds && data.customTodoListIds.length > 0) {
+        customToDoListIdsRepository.update(data.customTodoListIds);
+      }
+
+      // 恢复周总结数据（存储在 localStorage 中）
+      if (data.weeklySummaries) {
+        weeklySummaryRepository.restoreAll(data.weeklySummaries);
+      }
 
       return { ok: true, reloaded: true };
     } catch (err) {
