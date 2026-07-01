@@ -2,7 +2,7 @@
   <div class="item-drop-zone" @dragenter.self="onDragenter" @dragleave.self="onDragleave" @drop="onDragleave"
     :class="[{ 'drag-hover': todoDragHover }]">
     <div class="todo-item-container" :class="{ 'compact-view': compactView }" ref="itemContainer">
-      <div v-if="!editing" class="inline-todo-item d-flex flex-column" @mouseenter="showToDoItem">
+      <div v-if="!editing" class="inline-todo-item d-flex flex-column" @mouseenter="showToDoItem" @dblclick="editToDo">
         <div class="d-flex">
           <span class="noselect item-text" :class="{ 'checked-todo': toDo.checked, 'compact-view': compactView }"
             style="flex-grow: 1">
@@ -93,7 +93,7 @@ export default {
       const activeTodoItem = document.getElementById("todo-item-active");
       this.$nextTick(function () {
         const bounding = this.$refs.itemContainer.getBoundingClientRect();
-        activeTodoItem.style.width = `${bounding.width}px`;
+        activeTodoItem.style.width = `${Math.max(bounding.width + 24, 360)}px`;
         activeTodoItem.style.top = `${bounding.y}px`;
         activeTodoItem.style.left = `${bounding.x}px`;
         activeTodoItem.style.display = `block`;

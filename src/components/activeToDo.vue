@@ -13,7 +13,7 @@
       </span>
 
       <span class="noselect item-text" :class="{ 'checked-todo': activeTodo.toDo.checked }" style="flex-grow: 1"
-        @click.middle="showToDoDetails">
+        @click.middle="showToDoDetails" @dblclick.stop="editTodoItem">
         <span v-html="todoText"></span>
         <span class="time-details"> {{ timeFormat(activeTodo.toDo.time) }}
           <div class="alarm-indicator"
@@ -49,6 +49,11 @@
 
       <i class="bi-three-dots todo-item-menu" type="button" @click="showToDoDetails"></i>
       <i class="bi-x todo-item-remove" @click="removeTodo"></i>
+    </div>
+
+    <!-- 注释/备注 -->
+    <div v-if="activeTodo.toDo.desc" class="todo-item-desc">
+      <span class="todo-desc-text">{{ descText }}</span>
     </div>
 
     <!-- Emoji 选择面板 -->
@@ -139,6 +144,11 @@ export default {
       let toast = new Toast(document.getElementById("taskRemoved"));
       toast.show();
       this.hideToDoItem();
+    },
+    editTodoItem: function () {
+      if (typeof this.activeTodo.edit === 'function') {
+        this.activeTodo.edit();
+      }
     },
     showToDoDetails: function () {
       this.$store.commit("actionsSelectedTodoIdUpdate", {
@@ -331,6 +341,13 @@ export default {
     todoText: function () {
       return linkifyStr(this.activeTodo.toDo.text, this.options);
     },
+    descText: function () {
+      const desc = this.activeTodo.toDo.desc;
+      if (!desc) return "";
+      // 截取前 120 字符作为预览
+      const trimmed = desc.replace(/[#*_`>[\]-]/g, "").replace(/\s+/g, " ").trim();
+      return trimmed.length > 120 ? trimmed.slice(0, 120) + "…" : trimmed;
+    },
     notificationIndicator: function () {
       return this.$store.getters.config.notificationIndicator;
     },
@@ -515,6 +532,24 @@ export default {
 
 .dragging.todo-item {
   display: none;
+}
+
+/* 注释/备注预览 */
+.todo-item-desc {
+  margin: 2px 10px 4px;
+  padding: 4px 8px;
+  background: #f6f8fa;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #656d76;
+}
+.dark-theme .todo-item-desc {
+  background: #161b22;
+  color: #8b949e;
+}
+.todo-desc-text {
+  word-wrap: break-word;
 }
 
 .sub-tasks {

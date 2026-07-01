@@ -16,6 +16,11 @@
           class="week-header-container"
         >
           <span class="week-number-label">{{ currentWeekDisplay }}</span>
+          <i
+            class="bi-stars week-ai-todo-btn"
+            @click="openAiTodoModal"
+            title="AI 生成周待办"
+          ></i>
         </div>
         <div
           v-show="showCalendar"
@@ -78,6 +83,7 @@
 
         <weekly-summary
           v-show="showCustomList && showCalendar"
+          ref="weeklySummary"
           :weekLabel="currentWeekLabel"
           :weekNumber="currentWeekNum"
         ></weekly-summary>
@@ -292,6 +298,11 @@ export default {
     this.resetAppOnDayChange();
   },
   methods: {
+    openAiTodoModal: function () {
+      if (this.$refs.weeklySummary) {
+        this.$refs.weeklySummary.openAiTodoModal();
+      }
+    },
     weekMoveLeft: function () {
       this.selected_date = moment(this.selected_date).subtract(7, "d").format("YYYYMMDD");
       this.$refs.weekListContainer.scrollLeft = 0;
@@ -786,6 +797,10 @@ body {
   padding-top: 6px;
   padding-bottom: 2px;
   margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .week-number-label {
@@ -797,6 +812,29 @@ body {
 
 .dark-theme .week-number-label {
   color: #8b949e;
+}
+
+.week-ai-todo-btn {
+  font-size: 0.9rem;
+  color: #0969da;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 4px;
+  transition: 0.2s;
+}
+
+.week-ai-todo-btn:hover {
+  color: #0550ae;
+  background: #ddf4ff;
+}
+
+.dark-theme .week-ai-todo-btn {
+  color: #58a6ff;
+}
+
+.dark-theme .week-ai-todo-btn:hover {
+  color: #79c0ff;
+  background: #1f3a5f;
 }
 
 /*----------------Dark Theme------------------*/
