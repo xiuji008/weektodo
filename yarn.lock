@@ -7086,19 +7086,19 @@
 
 "lunar-javascript@^1.7.7":
   "integrity" "sha512-u/KYiwPIBo/0bT+WWfU7qO1d+aqeB90Tuy4ErXenr2Gam0QcWeezUvtiOIyXR7HbVnW2I1DKfU0NBvzMZhbVQw=="
-  "resolved" "http://192.168.3.186:4873/lunar-javascript/-/lunar-javascript-1.7.7.tgz"
+  "resolved" "https://registry.npmjs.org/lunar-javascript/-/lunar-javascript-1.7.7.tgz"
   "version" "1.7.7"
 
 "lunar-lite@^0.2.8":
   "integrity" "sha512-Y4tba4RaIFI0ikImJhgoEsyqtDE64lJIM3yFwRX01dbmagCDq7rNmpDQFrSFFy4WXeuywdRVFpIBoT1GGCEizw=="
-  "resolved" "http://192.168.3.186:4873/lunar-lite/-/lunar-lite-0.2.8.tgz"
+  "resolved" "https://registry.npmjs.org/lunar-lite/-/lunar-lite-0.2.8.tgz"
   "version" "0.2.8"
   dependencies:
     "lunar-typescript" "^1.8.6"
 
 "lunar-typescript@^1.8.6":
   "integrity" "sha512-5Eo4T/cnuXfrgO4k5LCpOGHIUOuz5hCF/IfNv0T29WY2shR36Hiz+ecN9WjnUuxUKhql9gbOkPaQoqLFKtPRNA=="
-  "resolved" "http://192.168.3.186:4873/lunar-typescript/-/lunar-typescript-1.8.6.tgz"
+  "resolved" "https://registry.npmjs.org/lunar-typescript/-/lunar-typescript-1.8.6.tgz"
   "version" "1.8.6"
 
 "magic-string@^0.30.0":
