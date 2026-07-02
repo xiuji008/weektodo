@@ -308,9 +308,10 @@ export default {
     },
     timeFormat: function (date) {
       if (date) {
-        return moment(date, "HH:mm").format("hh:mm a");
+        return moment(date, "HH:mm").format("HH:mm");
       }
     },
+
     linkifyText: function (text) {
       return linkifyStr(text, this.options);
     },

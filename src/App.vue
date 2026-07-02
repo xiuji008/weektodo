@@ -15,7 +15,10 @@
           v-show="showCalendar"
           class="week-header-container"
         >
-          <span class="week-number-label">{{ currentWeekDisplay }}</span>
+          <week-picker
+            :selectedDate="selected_date"
+            @select-week="onWeekPickerSelect"
+          ></week-picker>
           <i
             class="bi-stars week-ai-todo-btn"
             @click="openAiTodoModal"
@@ -47,6 +50,12 @@
           </div>
           <i class="bi-chevron-right slider-btn" ref="weekRight" @click="weekMoveRight"></i>
         </div>
+
+        <mood-tracker
+          v-show="showCalendar && dates_array.length"
+          :dates_array="dates_array"
+          @mood-changed="onMoodChanged"
+        ></mood-tracker>
 
         <div
           v-show="showCustomList && showCalendar"
@@ -208,6 +217,8 @@ import tasksHelper from "./helpers/tasksHelper";
 import s3Sync from "./helpers/s3Sync";
 import s3ConfigRepository from "./repositories/s3ConfigRepository";
 import weeklySummary from "./components/weeklySummary.vue";
+import weekPicker from "./components/weekPicker.vue";
+import moodTracker from "./components/moodTracker.vue";
 
 export default {
   name: "App",
@@ -230,6 +241,8 @@ export default {
     toastMessage,
     activeToDo,
     weeklySummary,
+    weekPicker,
+    moodTracker,
   },
   data() {
     return {
@@ -256,7 +269,7 @@ export default {
     this.$store.commit("loadConfig", configRepository.load());
     this.$i18n.locale = this.$store.getters.config.language;
 
-    this.$store.dispatch("loadAllRepeatingEvent").then(
+      this.$store.dispatch("loadAllRepeatingEvent").then(
       function () {
         let totalDaysCount = 7;
         let totalCustomListCount = this.$store.getters.cTodoListIds.length;
@@ -267,6 +280,10 @@ export default {
           this.weekResetScroll();
         });
         this.$store.commit("loadRepeatingEventDateCache", this.$store.getters.repeatingEventList);
+        // 兜底检查：如果组件已全部挂载但 initialListToLoad 设置延迟了
+        if (this.initialListLoaded >= this.initialListToLoad) {
+          this.methodsAfterInitialLoad();
+        }
       }.bind(this)
     );
   },
@@ -303,6 +320,9 @@ export default {
         this.$refs.weeklySummary.openAiTodoModal();
       }
     },
+    onMoodChanged: function () {
+      this.s3DebouncedPush();
+    },
     weekMoveLeft: function () {
       this.selected_date = moment(this.selected_date).subtract(7, "d").format("YYYYMMDD");
       this.$refs.weekListContainer.scrollLeft = 0;
@@ -310,6 +330,14 @@ export default {
     weekMoveRight: function () {
       this.selected_date = moment(this.selected_date).add(7, "d").format("YYYYMMDD");
       this.$refs.weekListContainer.scrollLeft = 0;
+    },
+    onWeekPickerSelect: function (monday) {
+      this.selected_date = monday;
+      this.$nextTick(function () {
+        if (this.$refs.weekListContainer) {
+          this.$refs.weekListContainer.scrollLeft = 0;
+        }
+      });
     },
     deleteOldRepeatingEvents: function () {
       for (const event of Object.entries(this.$store.getters.repeatingEventList)) {
@@ -409,9 +437,9 @@ export default {
       this.methodsAfterInitialLoad();
     },
     methodsAfterInitialLoad: function () {
-      if (!this.initialLoadCompleted) {
+      if (!this.initialLoadCompleted && this.initialListToLoad > 0) {
         this.initialListLoaded++;
-        if (this.initialListLoaded == this.initialListToLoad) {
+        if (this.initialListLoaded >= this.initialListToLoad) {
           this.initialLoadCompleted = true;
           if (this.$store.getters.config.moveOldTasks) {
             this.moveOldTasksToToday().then(() => {
@@ -631,6 +659,10 @@ export default {
       const year = moment(this.selected_date).isoWeekYear();
       return `${year}_W${weekNum}`;
     },
+    selectedDateISO: function () {
+      if (!this.selected_date) return '';
+      return moment(this.selected_date).format('YYYY-MM-DD');
+    },
     currentWeekDisplay: function () {
       if (!this.selected_date) return "";
       const weekNum = moment(this.selected_date).isoWeek();
@@ -783,7 +815,8 @@ body {
 }
 
 .full-screen {
-  height: 100%;
+  flex: 1 1 0;
+  height: auto;
   resize: unset;
 }
 
@@ -812,6 +845,14 @@ body {
 
 .dark-theme .week-number-label {
   color: #8b949e;
+}
+
+.week-date-picker {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
 }
 
 .week-ai-todo-btn {

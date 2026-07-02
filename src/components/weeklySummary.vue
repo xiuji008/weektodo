@@ -276,6 +276,8 @@ import toDoListRepository from "../repositories/toDoListRepository";
 import dbRepository from "../repositories/dbRepository";
 import aiService from "../helpers/aiService";
 import aiConfigRepository from "../repositories/aiConfigRepository";
+import s3Sync from "../helpers/s3Sync";
+import s3ConfigRepository from "../repositories/s3ConfigRepository";
 import { Modal } from "bootstrap";
 
 export default {
@@ -372,6 +374,13 @@ export default {
     saveAndClose() {
       this.content = this.editContent;
       weeklySummaryRepository.save(this.weekLabel, this.editContent);
+      // 周报变更时触发 S3 自动同步推送
+      const s3Config = s3ConfigRepository.load();
+      if (s3Config.autoSync && s3ConfigRepository.isConfigured()) {
+        s3Sync.autoSyncPush().catch((err) => {
+          console.log("S3 auto-sync push (weekly summary) failed:", err);
+        });
+      }
       const el = document.getElementById(this.modalId);
       if (el) {
         const modal = Modal.getInstance(el);
@@ -437,11 +446,20 @@ export default {
   "desc": "备注"             // 可选
 }`;
 
+      const now = moment();
+      const currentTime = now.format("HH:mm");
+      const currentDate = now.format("YYYY-MM-DD");
+      const currentDateId = now.format("YYYYMMDD");
+
       const userMessage = [
         "你是一个智能周待办规划助手。用户将描述本周想做的事，请根据描述生成结构化的待办事项。",
         "",
         `## 本周日期范围（共 7 天）`,
         dateListStr,
+        "",
+        `## 当前时间`,
+        `当前日期：${currentDate}（dateId: ${currentDateId}）`,
+        `当前时间：${currentTime}`,
         "",
         "## 每个待办事项的 JSON 格式",
         "```json",
@@ -454,6 +472,8 @@ export default {
         "3. 用户未指定日期的任务，智能分配到合适的日期",
         "4. 学习类任务分散到多个工作日",
         "5. 使用中文任务标题",
+        "6. ⚠️ 如果设置的 dateId 小于当前日期（即过去的时间），则禁止输出该任务",
+        "7. ⚠️ 如果设置的 dateId 等于当前日期，且 time 早于当前时间，则禁止设置 time（留空）或将任务分配到后续日期",
         "",
         "## 用户需求",
         this.aiTodoInput.trim(),
@@ -461,6 +481,7 @@ export default {
 
       aiService.chatStream({
         userMessage,
+        systemPrompt: aiConfigRepository.load().todoSystemPrompt,
         onChunk: (fullContent) => {
           this.aiTodoRaw = fullContent;
         },
@@ -638,6 +659,7 @@ export default {
       ].join("\n");
       aiService.chatStream({
         userMessage,
+        systemPrompt: aiConfigRepository.load().systemPrompt,
         onChunk: (fullContent) => { this.aiContent = fullContent; },
         onDone: (fullContent) => { this.aiStreaming = false; this.aiContent = fullContent; },
         onError: (error) => { this.aiStreaming = false; this.aiContent = ""; alert("AI 生成失败：" + error); },
@@ -996,7 +1018,7 @@ export default {
 }
 .preview-drawer-overlay.visible { opacity: 1; visibility: visible; }
 .preview-drawer {
-  position: fixed; top: 0; right: 0; width: 480px; max-width: 90vw; height: 100%;
+  position: fixed; top: 0; right: 0; width: 680px; max-width: 90vw; height: 100%;
   z-index: 1056; background: #fff;
   box-shadow: -4px 0 16px rgba(0,0,0,.12);
   transform: translateX(100%);

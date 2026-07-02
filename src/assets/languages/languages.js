@@ -17,7 +17,7 @@ import hi from './hi.json'
 import he from './he.json'
 import vi from './vi.json'
 
-export const defaultLocale = 'en'
+export const defaultLocale = 'zh_cn'
 
 export const languages = {
     en: en,

@@ -111,12 +111,6 @@
                     v-model="configData.runInBackground" @change="setRunInBackground()" />
                 </div>
 
-                <div class="form-check form-switch d-flex px-1 mb-3 justify-content-between">
-                  <label class="form-check-label flex-fill" for="reportErrors">{{ $t("settings.reportErrors")
-                  }}</label>
-                  <input class="form-check-input" type="checkbox" id="reportErrors" v-model="configData.reportErrors"
-                    @change="setSendErrors()" />
-                </div>
               </div>
             </div>
             <div class="tab-pane fade" id="config-behavior">
@@ -302,9 +296,33 @@
                         {{ $t("settings.clear") }}
                       </button>
                     </div>
+
+                    <div class="horizontal-divider my-3"></div>
+
+                    <div class="text-muted small mb-2">{{ $t("settings.configDataDesc") }}</div>
+
+                    <div class="form-check form-switch d-flex px-1 mb-3 justify-content-between align-items-center">
+                      <label class="form-check-label" for="export-config-btn">{{ $t("settings.exportConfigData") }}</label>
+                      <button id="export-config-btn" type="button" class="btn py-1 px-2 border" style="width: 140px;"
+                        @click="exportConfigData">
+                        <i class="icons bi-gear mx-2"></i>
+                        {{ $t("settings.export") }}
+                      </button>
+                    </div>
+
+                    <div class="form-check form-switch d-flex px-1 mb-3 justify-content-between align-items-center">
+                      <label class="form-check-label" for="import-config-btn">{{ $t("settings.importConfigData") }}</label>
+                      <button id="import-config-btn" type="button" class="btn py-1 px-2 border" style="width: 140px;"
+                        @click="$refs.loadConfig.click">
+                        <i class="icons bi-gear mx-2"></i>
+                        {{ $t("settings.import") }}
+                      </button>
+                    </div>
                   </div>
                   <input type="file" id="file-selector" class="d-none" accept=".wtdb" ref="loadData"
                     @change="importData($event)" />
+                  <input type="file" id="config-file-selector" class="d-none" accept=".wtc" ref="loadConfig"
+                    @change="importConfigData($event)" />
                 </div>
               </div>
             </div>
@@ -331,7 +349,7 @@
 
                 <div class="mb-2">
                   <label class="form-label small">{{ $t("settings.objectKey") }}</label>
-                  <input type="text" class="form-control form-control-sm" v-model="s3Config.objectKey" placeholder="weektodo/backup.wtdb" />
+                  <input type="text" class="form-control form-control-sm" v-model="s3Config.objectKey" placeholder="weektodobackup.wtdb" />
                 </div>
 
                 <div class="mb-2">
@@ -370,6 +388,14 @@
                   </button>
                   <button type="button" class="btn btn-sm py-1 px-2 border" style="flex: 1" @click="restoreFromS3" :disabled="s3Busy || !s3Ready">
                     <i class="bi-cloud-arrow-down me-1"></i>{{ $t("settings.restoreNow") }}
+                  </button>
+                </div>
+
+                <div class="d-flex gap-2 mb-2">
+                  <button type="button" class="btn btn-sm py-1 px-2 border" style="flex: 1"
+                    data-bs-toggle="modal" data-bs-target="#s3HistoryModal"
+                    :disabled="!s3Ready">
+                    <i class="bi-clock-history me-1"></i>{{ $t("settings.s3History") }}
                   </button>
                 </div>
 
@@ -431,8 +457,15 @@
                 <div class="text-muted small mb-2">{{ $t("settings.aiSystemPrompt") }}</div>
 
                 <div class="mb-2">
-                  <textarea class="form-control form-control-sm ai-prompt-textarea" rows="8"
+                  <textarea class="form-control form-control-sm ai-prompt-textarea" rows="6"
                     v-model="aiConfig.systemPrompt"></textarea>
+                </div>
+
+                <div class="text-muted small mb-2">{{ $t("settings.aiTodoPrompt") || "待办生成提示词" }}</div>
+
+                <div class="mb-2">
+                  <textarea class="form-control form-control-sm ai-prompt-textarea" rows="6"
+                    v-model="aiConfig.todoSystemPrompt"></textarea>
                 </div>
 
                 <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
@@ -498,6 +531,7 @@
       <toast-message ref="invalidFile" id="invalidFile" text="$t('settings.invalidFile')"></toast-message>
     </div>
   </div>
+  <s3-history-modal ref="s3HistoryModal"></s3-history-modal>
 </template>
 
 <script>
@@ -508,14 +542,16 @@ import linkList from "../components/linkList";
 import configList from "./configList";
 import notifications from "../helpers/notifications";
 import s3Sync from "../helpers/s3Sync";
+import s3SyncHistory from "../helpers/s3SyncHistory";
 import s3ConfigRepository from "../repositories/s3ConfigRepository";
 import aiConfigRepository from "../repositories/aiConfigRepository";
 import aiService from "../helpers/aiService";
+import s3HistoryModal from "./s3HistoryModal.vue";
 import { Modal } from "bootstrap";
 
 export default {
   name: "configModal",
-  components: { toastMessage, linkList },
+  components: { toastMessage, linkList, s3HistoryModal },
   props: {
     configProp: { required: true },
   },
@@ -546,10 +582,10 @@ export default {
     aiReady: function () {
       return !!(this.aiConfig.endpoint && this.aiConfig.apiKey && this.aiConfig.model);
     },
-    watch: {
-      configProp: function (newVal) {
-        this.configData = newVal;
-      }
+  },
+  watch: {
+    configProp: function (newVal) {
+      this.configData = newVal;
     }
   },
   methods: {
@@ -581,6 +617,14 @@ export default {
       let importingModal = new Modal(document.getElementById("importingModal"), { backdrop: "static" });
       importingModal.show();
       exportTool.import(event);
+    },
+    exportConfigData: function () {
+      exportTool.exportConfig();
+    },
+    importConfigData: function (event) {
+      exportTool.importConfig(event);
+      // reset input so same file can be selected again
+      event.target.value = "";
     },
     isElectron: function () {
       let isElectron = require("is-electron");
@@ -615,9 +659,6 @@ export default {
           ipcRenderer.send('set-tray-context-menu-label', { open: this.$t("ui.open"), quit: this.$t("ui.quit") });
         }
       });
-    },
-    setSendErrors: function () {
-      this.changeConfig('reportErrors', this.configData.reportErrors);
     },
     setDarkTrayIcon: function () {
       this.changeConfig('darkTrayIcon', this.configData.darkTrayIcon);
@@ -724,6 +765,7 @@ export default {
     },
     restoreAiDefaultPrompt: function () {
       this.aiConfig.systemPrompt = aiConfigRepository.DEFAULT_PROMPT;
+      this.aiConfig.todoSystemPrompt = aiConfigRepository.DEFAULT_TODO_PROMPT;
       this.setAiStatus(this.$t("settings.aiPromptRestored"), "alert-success");
     },
     setAiStatus: function (message, alertClass) {

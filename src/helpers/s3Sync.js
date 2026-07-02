@@ -10,6 +10,7 @@ import s3Client from "./s3Client";
 import s3ConfigRepository from "../repositories/s3ConfigRepository";
 import customToDoListIdsRepository from "../repositories/customToDoListIdsRepository";
 import weeklySummaryRepository from "../repositories/weeklySummaryRepository";
+import moodRepository from "../repositories/moodRepository";
 
 const SYNC_VERSION = 1;
 
@@ -96,6 +97,7 @@ export default {
       repeating_events_by_date: {},
       customTodoListIds: [],
       weeklySummaries: {},
+      moods: {},
     };
 
     const db = await openDb();
@@ -112,6 +114,9 @@ export default {
 
     // 收集周总结数据（存储在 localStorage 中）
     data.weeklySummaries = weeklySummaryRepository.loadAll();
+
+    // 收集每日心情数据（存储在 localStorage 中）
+    data.moods = moodRepository.loadAll();
 
     return data;
   },
@@ -192,6 +197,11 @@ export default {
       // 恢复周总结数据（存储在 localStorage 中）
       if (data.weeklySummaries) {
         weeklySummaryRepository.restoreAll(data.weeklySummaries);
+      }
+
+      // 恢复每日心情数据（存储在 localStorage 中）
+      if (data.moods) {
+        moodRepository.restoreAll(data.moods);
       }
 
       return { ok: true, reloaded: true };

@@ -79,8 +79,7 @@ function trayIcon() {
 
 function telemetric() {
   let config = configRepository.load();
-  if (!("reportErrors" in config)) {
-    config["reportErrors"] = false;
+  if (!("compactView" in config)) {
     config["customColumns"] = config["columns"];
     config["compactView"] = true;
     config["startCalendarYesterday"] = true;

@@ -27,7 +27,7 @@ export default {
 
     var alertTimeOut = setTimeout(
       function () {
-        this.createNotification(moment(todoTime, "HH:mm").format("LT"), todoText, notificationSound);
+        this.createNotification(moment(todoTime, "HH:mm").format("HH:mm"), todoText, notificationSound);
       }.bind(this),
       duration
     );

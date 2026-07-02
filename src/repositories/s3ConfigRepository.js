@@ -19,7 +19,7 @@ export default {
       endpoint: "",
       region: "us-east-1",
       bucket: "",
-      objectKey: "weektodo/backup.wtdb",
+      objectKey: "weektodobackup.wtdb",
       accessKeyId: "",
       secretAccessKey: "",
       autoSync: false,

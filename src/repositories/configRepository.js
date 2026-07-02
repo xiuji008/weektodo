@@ -13,7 +13,7 @@ export default {
         customList: true,
         calendar: true,
         firstTimeOpen: true,
-        language: "en",
+        language: "zh_cn",
         version: version_json.version,
         checkUpdates: true,
         columns: 5,

@@ -47,6 +47,24 @@ i {
   color: #636363;
 }
 
+/* 周末列背景（浅绿色） */
+.weekend-col {
+  background-color: rgba(46, 204, 113, 0.06);
+}
+
+.dark-theme .weekend-col {
+  background-color: rgba(74, 222, 128, 0.08);
+}
+
+/* 节假日列背景（浅蓝色） */
+.holiday-col {
+  background-color: rgba(52, 152, 219, 0.06);
+}
+
+.dark-theme .holiday-col {
+  background-color: rgba(96, 165, 250, 0.08);
+}
+
 .main-horizontal-divider {
   cursor: row-resize;
   display: flex;

@@ -77,9 +77,10 @@ export default {
     },
     timeFormat: function (date) {
       if (date) {
-        return moment(date, "HH:mm").format("hh:mm a");
+        return moment(date, "HH:mm").format("HH:mm");
       }
     },
+
     showToDoItem: function () {
       var activeTodo = {
         toDo: this.toDo,
@@ -93,9 +94,17 @@ export default {
       const activeTodoItem = document.getElementById("todo-item-active");
       this.$nextTick(function () {
         const bounding = this.$refs.itemContainer.getBoundingClientRect();
-        activeTodoItem.style.width = `${Math.max(bounding.width + 24, 360)}px`;
+        const popupWidth = Math.max(bounding.width + 24, 360);
+        activeTodoItem.style.width = `${popupWidth}px`;
         activeTodoItem.style.top = `${bounding.y}px`;
-        activeTodoItem.style.left = `${bounding.x}px`;
+
+        // 右侧边界检查：防止面板超出视口右侧
+        const margin_right = 10;
+        var leftOffset = bounding.x;
+        var rightOverflow = parseInt(leftOffset) + popupWidth + margin_right - parseInt(window.innerWidth);
+        if (rightOverflow > 0) leftOffset = parseInt(window.innerWidth) - popupWidth - margin_right;
+        activeTodoItem.style.left = `${leftOffset}px`;
+
         activeTodoItem.style.display = `block`;
         const margin_bottom = 10;
         var offset = parseInt(window.innerHeight) - (parseInt(bounding.y) + parseInt(activeTodoItem.offsetHeight)) - margin_bottom;

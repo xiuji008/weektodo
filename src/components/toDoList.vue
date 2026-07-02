@@ -1,6 +1,9 @@
 <template>
   <div :id="'list' + id" class="to-do-list-container d-flex flex-column" ref="listContainer" :class="{
     'old-date': !customTodoList && moments(id).isBefore(Date(), 'day'),
+    'today-col': !customTodoList && todoIsToday,
+    'weekend-col': !customTodoList && todoIsWeekend,
+    'holiday-col': !customTodoList && todoIsHoliday,
   }" :style="`flex: 0 0 ${100 / columns}%;`">
     <div v-if="loading" class="loading-spinner">
       <div class="spinner-border" role="status">
@@ -37,6 +40,7 @@ import listHeader from "./listHeader";
 import notifications from "../helpers/notifications";
 import repeatingEventHelper from "../helpers/repeatingEvents.js";
 import tasksHelper from "../helpers/tasksHelper";
+import { HolidayUtil } from 'lunar-javascript';
 
 export default {
   components: {
@@ -181,6 +185,25 @@ export default {
         
       return this.$store.getters.config.columns;
     },
+    todoIsWeekend: function () {
+      if (!this.id) return false;
+      const dow = moment(this.id).day();
+      return dow === 0 || dow === 6;
+    },
+    todoIsHoliday: function () {
+      if (!this.id) return false;
+      try {
+        const m = moment(this.id);
+        const h = HolidayUtil.getHoliday(m.year(), m.month() + 1, m.date());
+        return h !== null;
+      } catch (e) {
+        return false;
+      }
+    },
+    todoIsToday: function () {
+      if (!this.id) return false;
+      return moment().format("YYYYMMDD") === this.id;
+    },
   },
 };
 </script>
@@ -210,6 +233,24 @@ export default {
   padding-right: 13px;
   scroll-snap-align: start;
   margin-bottom: 5px;
+}
+
+/* 当天高亮：左侧蓝边 + 浅蓝背景 */
+.today-col {
+  background: rgba(9, 105, 218, 0.03);
+  border-left: 3px solid #0969da;
+  border-right: 3px solid #0969da;
+  margin-left: -3px;
+  margin-right: -3px;
+  padding-left: 13px;
+  padding-right: 13px;
+  border-radius: 2px;
+}
+
+.dark-theme .today-col {
+  background: rgba(88, 166, 255, 0.05);
+  border-left-color: #58a6ff;
+  border-right-color: #58a6ff;
 }
 
 .to-do-fake-item {

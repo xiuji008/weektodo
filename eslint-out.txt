@@ -1,0 +1,8 @@
+npm WARN config global `--global`, `--local` are deprecated. Use `--location=global` instead.
+
+d:\xj\github\weektodo\src\components\weekPicker.vue
+  165:3  error  The `beforeDestroy` lifecycle hook is deprecated. Use `beforeUnmount` instead  vue/no-deprecated-destroyed-lifecycle
+
+✖ 1 problem (1 error, 0 warnings)
+  1 error and 0 warnings potentially fixable with the `--fix` option.
+

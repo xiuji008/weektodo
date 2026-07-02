@@ -66,6 +66,43 @@ export default {
       };
     };
   },
+  /**
+   * 仅导出配置数据（不含待办事项）。
+   * 包含: config, s3SyncConfig, aiConfig, customTodoListIds
+   */
+  exportConfig() {
+    var filename = "WeekToDoConfig.wtc";
+    var data = {};
+    var configKeys = ["config", "s3SyncConfig", "aiConfig", "customTodoListIds"];
+    configKeys.forEach(function (key) {
+      var val = localStorage.getItem(key);
+      if (val !== null) {
+        data[key] = val;
+      }
+    });
+    data.__configExport = true;
+    var string_data = JSON.stringify(data);
+    createExportLink(filename, string_data);
+  },
+  /**
+   * 仅导入配置数据（不影响待办事项）。
+   */
+  importConfig(event) {
+    let fr = readFile(event.target.files);
+    fr.onload = function () {
+      var toast = new Toast(document.getElementById("invalidFile"));
+      try {
+        var data = JSON.parse(fr.result);
+        if (data.__configExport && data.config) {
+          importConfigData(data);
+        } else {
+          toast.show();
+        }
+      } catch (e) {
+        toast.show();
+      }
+    };
+  },
 };
 
 function getRepeatinEventData(filename, data, event) {
@@ -124,6 +161,31 @@ function readFile(files) {
 function importData(data) {
   importLocalStorageData(data);
   importIndexedDbData(data, "todo_lists");
+}
+
+/**
+ * 仅导入配置数据到 localStorage，不影响 IndexedDB 中的待办事项。
+ */
+function importConfigData(data) {
+  var configKeys = ["config", "s3SyncConfig", "aiConfig", "customTodoListIds"];
+  configKeys.forEach(function (key) {
+    if (data[key] !== undefined && data[key] !== null) {
+      localStorage.setItem(key, data[key]);
+    }
+  });
+  // 给 config 标记导入状态，确保应用重新加载时正确处理
+  try {
+    var configData = JSON.parse(localStorage.getItem("config"));
+    if (configData) {
+      configData.importing = true;
+      localStorage.setItem("config", JSON.stringify(configData));
+    }
+  } catch (e) {
+    // ignore parse errors
+  }
+  setTimeout(function () {
+    location.reload();
+  }, 500);
 }
 
 function importLocalStorageData(data) {

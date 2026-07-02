@@ -11,11 +11,6 @@
         <div class="mb-1">{{ $t('welcome.privacyText') }}</div>
         <span class="sub-header">{{ $t('welcome.privacySub') }} </span>
       </div>
-      <div class="form-check form-switch d-flex px-1 mt-3 mb-0 align-items-center justify-content-center">
-        <label class="form-check-label" for="sendReportErrors">{{ $t("settings.reportErrors")
-        }}</label>
-        <input class="form-check-input mx-3" type="checkbox" id="sendReportErrors" v-model="reportErrors" @change="changeSendErrors()" />
-      </div>
     </div>
   </div>
   <div class="d-flex btn-footer mt-3">
@@ -30,22 +25,13 @@
 
 <script>
 
-import configRepository from "../../repositories/configRepository";
-
 export default {
   name: "backupView",
   data() {
     return {
-      reportErrors: this.$store.getters.config.reportErrors
     }
   },
   methods: {
-    changeSendErrors: function () {
-      this.$nextTick(function () {
-        this.$store.commit('updateConfig', { val: this.reportErrors, key: "reportErrors" });
-        configRepository.update(this.$store.getters.config);
-      });
-    },
     next: function () {
       document.getElementById('welcome-4-tab').click();
     },

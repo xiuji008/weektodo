@@ -9,17 +9,19 @@ export default {
    * Send a chat completion request.
    * @param {Object} params
    * @param {string} params.userMessage - The latest user message
+   * @param {string} [params.systemPrompt] - Optional system prompt override (per-scenario)
    * @returns {Promise<{ok: boolean, content?: string, error?: string}>}
    */
-  async chat({ userMessage }) {
+  async chat({ userMessage, systemPrompt }) {
     const config = aiConfigRepository.load();
     if (!aiConfigRepository.isConfigured()) {
       return { ok: false, error: "AI_NOT_CONFIGURED" };
     }
 
     const messages = [];
-    if (config.systemPrompt && config.systemPrompt.trim()) {
-      messages.push({ role: "system", content: config.systemPrompt });
+    const prompt = systemPrompt || config.systemPrompt;
+    if (prompt && prompt.trim()) {
+      messages.push({ role: "system", content: prompt });
     }
 
     if (config.carryContext && Array.isArray(config.history) && config.history.length > 0) {
@@ -81,11 +83,12 @@ export default {
    * Send a chat completion request with streaming (SSE) response.
    * @param {Object} params
    * @param {string} params.userMessage - The latest user message
+   * @param {string} [params.systemPrompt] - Optional system prompt override (per-scenario)
    * @param {function} params.onChunk - Callback(fullContent, delta) on each chunk received
    * @param {function} params.onDone - Callback(fullContent) when streaming completes
    * @param {function} params.onError - Callback(errorMessage) on failure
    */
-  async chatStream({ userMessage, onChunk, onDone, onError }) {
+  async chatStream({ userMessage, systemPrompt, onChunk, onDone, onError }) {
     const config = aiConfigRepository.load();
     if (!aiConfigRepository.isConfigured()) {
       onError("AI_NOT_CONFIGURED");
@@ -93,8 +96,9 @@ export default {
     }
 
     const messages = [];
-    if (config.systemPrompt && config.systemPrompt.trim()) {
-      messages.push({ role: "system", content: config.systemPrompt });
+    const prompt = systemPrompt || config.systemPrompt;
+    if (prompt && prompt.trim()) {
+      messages.push({ role: "system", content: prompt });
     }
 
     if (config.carryContext && Array.isArray(config.history) && config.history.length > 0) {
