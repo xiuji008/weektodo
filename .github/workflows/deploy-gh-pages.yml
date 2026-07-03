@@ -26,7 +26,6 @@ jobs:
       - name: Install Dependencies
         run: |
           npm install --global yarn
-          yarn config set registry https://registry.npmjs.org/
           yarn install --frozen-lockfile
 
       - name: Build
