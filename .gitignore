@@ -20,3 +20,7 @@ pnpm-debug.log*
 /dist_electron
 
 .env
+
+# Local development artifacts
+eslint-out.txt
+fix-registry.js
