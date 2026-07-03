@@ -13,20 +13,19 @@
     "Minimalist"
   ],
   "scripts": {
-    "serve": "vue-cli-service serve",
-    "build": "vue-cli-service build",
+    "serve": "cross-env NODE_OPTIONS=--openssl-legacy-provider vue-cli-service serve",
+    "build": "cross-env NODE_OPTIONS=--openssl-legacy-provider vue-cli-service build",
     "lint": "vue-cli-service lint",
-    "electron:build": "vue-cli-service electron:build",
-    "electron:serve": "vue-cli-service electron:serve",
+    "electron:build": "cross-env NODE_OPTIONS=--openssl-legacy-provider vue-cli-service electron:build",
+    "electron:serve": "cross-env NODE_OPTIONS=--openssl-legacy-provider vue-cli-service electron:serve",
     "postinstall": "electron-builder install-app-deps",
     "postuninstall": "electron-builder install-app-deps",
-    "release": "electron-builder",
+    "release": "cross-env NODE_OPTIONS=--openssl-legacy-provider electron-builder",
     "test": "echo success"
   },
   "main": "background.js",
   "repository": "https://github.com/manuelernestog/weektodo",
   "dependencies": {
-    "@achrinza/node-ipc": "^10.1.10",
     "@manuelernestog/click-handler": "^1.4.0",
     "@popperjs/core": "^2.11.0",
     "auto-launch": "^5.0.5",
@@ -61,6 +60,7 @@
     "electron-devtools-installer": "^3.1.0",
     "eslint": "^6.7.2",
     "eslint-plugin-vue": "^7.20.0",
+    "cross-env": "^7.0.3",
     "sass": "^1.69.5",
     "sass-loader": "^10",
     "vue-cli-plugin-electron-builder": "~2.0.0-rc.6"
