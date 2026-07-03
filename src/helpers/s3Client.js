@@ -246,7 +246,6 @@ export default {
     const objectPath = `/${config.bucket}/`;
     const url = `${trimEndpoint(config.endpoint)}${objectPath}${query}`;
 
-    const service = "s3";
     const now = new Date();
     const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
     const dateStamp = amzDate.slice(0, 8);

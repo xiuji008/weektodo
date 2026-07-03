@@ -542,7 +542,6 @@ import linkList from "../components/linkList";
 import configList from "./configList";
 import notifications from "../helpers/notifications";
 import s3Sync from "../helpers/s3Sync";
-import s3SyncHistory from "../helpers/s3SyncHistory";
 import s3ConfigRepository from "../repositories/s3ConfigRepository";
 import aiConfigRepository from "../repositories/aiConfigRepository";
 import aiService from "../helpers/aiService";
