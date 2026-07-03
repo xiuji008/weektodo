@@ -211,9 +211,6 @@ export default {
       const versions = listResult.objects
         .filter((obj) => obj.key.endsWith(".json") && !obj.key.endsWith("manifest.json"))
         .map((obj) => {
-          // 从 key 中提取时间戳信息
-          const keyName = obj.key.split("/").pop() || "";
-          // const tsPart = keyName.replace(".json", "");
           let createdAt = obj.lastModified;
           let label = obj.lastModified;
           return { key: obj.key, createdAt, label };
