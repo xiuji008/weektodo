@@ -6,14 +6,10 @@
 
 const encoder = new TextEncoder();
 
-// ─── Pure-JS SHA-256 fallback for non-secure HTTP contexts ───────────
+// ─── Pure-JS SHA-256 fallback (RFC 6234) for non-secure HTTP contexts ─
 // (crypto.subtle is only available under HTTPS/localhost)
 
-function rightRotate(value, amount) {
-  return (value >>> amount) | (value << (32 - amount));
-}
-
-const sha256K = new Uint32Array([
+const K256 = [
   0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
   0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
   0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
@@ -30,90 +26,99 @@ const sha256K = new Uint32Array([
   0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
   0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
   0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
-]);
+];
 
-function sha256Pad(data) {
-  const msgLen = data.length * 8;
-  data.push(0x80);
-  while (data.length % 64 !== 56) data.push(0);
-  for (let i = 7; i >= 0; i--) data.push((msgLen >>> (i * 8)) & 0xff);
-  return data;
-}
-
-function sha256Blocks(message) {
+function sha256(message) {
+  // Convert string to UTF-8 bytes
   const bytes = [];
   for (let i = 0; i < message.length; i++) {
-    bytes.push(message.charCodeAt(i) & 0xff);
+    const c = message.charCodeAt(i);
+    if (c < 0x80) bytes.push(c);
+    else if (c < 0x800) { bytes.push(0xc0 | (c >> 6)); bytes.push(0x80 | (c & 0x3f)); }
+    else { bytes.push(0xe0 | (c >> 12)); bytes.push(0x80 | ((c >> 6) & 0x3f)); bytes.push(0x80 | (c & 0x3f)); }
   }
-  const data = sha256Pad(bytes);
-  let h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a;
-  let h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
+  const ml = bytes.length * 8;
 
-  const w = new Uint32Array(64);
-  for (let offset = 0; offset < data.length; offset += 64) {
+  // Pad: append 0x80, then 0x00 until length ≡ 56 (mod 64), then 64-bit length
+  bytes.push(0x80);
+  while ((bytes.length + 8) % 64 !== 0) bytes.push(0);
+  for (let i = 7; i >= 0; i--) bytes.push((ml >>> (i * 8)) & 0xff);
+
+  // Initialize hash values
+  let H = [
+    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+  ];
+
+  const W = new Uint32Array(64);
+
+  // Process 64-byte blocks
+  for (let offset = 0; offset < bytes.length; offset += 64) {
+    // Prepare message schedule
     for (let t = 0; t < 16; t++) {
-      w[t] = (data[offset + t * 4] << 24) | (data[offset + t * 4 + 1] << 16) |
-             (data[offset + t * 4 + 2] << 8) | data[offset + t * 4 + 3];
+      W[t] = (bytes[offset + t * 4] << 24) | (bytes[offset + t * 4 + 1] << 16) |
+             (bytes[offset + t * 4 + 2] << 8) | bytes[offset + t * 4 + 3];
     }
     for (let t = 16; t < 64; t++) {
-      const s0 = rightRotate(w[t - 15], 7) ^ rightRotate(w[t - 15], 18) ^ (w[t - 15] >>> 3);
-      const s1 = rightRotate(w[t - 2], 17) ^ rightRotate(w[t - 2], 19) ^ (w[t - 2] >>> 10);
-      w[t] = (w[t - 16] + s0 + w[t - 7] + s1) | 0;
+      const s0 = (W[t - 15] >>> 7 | W[t - 15] << 25) ^ (W[t - 15] >>> 18 | W[t - 15] << 14) ^ (W[t - 15] >>> 3);
+      const s1 = (W[t - 2] >>> 17 | W[t - 2] << 15) ^ (W[t - 2] >>> 19 | W[t - 2] << 13) ^ (W[t - 2] >>> 10);
+      W[t] = (W[t - 16] + s0 + W[t - 7] + s1) >>> 0;
     }
 
-    let a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
+    // Initialize working variables
+    let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+
+    // Compression
     for (let t = 0; t < 64; t++) {
-      const S1 = rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
-      const ch = (e & f) ^ ((~e) & g);
-      const temp1 = (h + S1 + ch + sha256K[t] + w[t]) | 0;
-      const S0 = rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
+      const S1 = (e >>> 6 | e << 26) ^ (e >>> 11 | e << 21) ^ (e >>> 25 | e << 7);
+      const ch = (e & f) ^ (~e & g);
+      const temp1 = (h + S1 + ch + K256[t] + W[t]) >>> 0;
+      const S0 = (a >>> 2 | a << 30) ^ (a >>> 13 | a << 19) ^ (a >>> 22 | a << 10);
       const maj = (a & b) ^ (a & c) ^ (b & c);
-      const temp2 = (S0 + maj) | 0;
+      const temp2 = (S0 + maj) >>> 0;
 
-      h = g; g = f; f = e; e = (d + temp1) | 0;
-      d = c; c = b; b = a; a = (temp1 + temp2) | 0;
+      h = g; g = f; f = e;
+      e = (d + temp1) >>> 0;
+      d = c; c = b; b = a;
+      a = (temp1 + temp2) >>> 0;
     }
 
-    h0 = (h0 + a) | 0; h1 = (h1 + b) | 0; h2 = (h2 + c) | 0; h3 = (h3 + d) | 0;
-    h4 = (h4 + e) | 0; h5 = (h5 + f) | 0; h6 = (h6 + g) | 0; h7 = (h7 + h) | 0;
+    // Compute intermediate hash values
+    H[0] = (H[0] + a) >>> 0;
+    H[1] = (H[1] + b) >>> 0;
+    H[2] = (H[2] + c) >>> 0;
+    H[3] = (H[3] + d) >>> 0;
+    H[4] = (H[4] + e) >>> 0;
+    H[5] = (H[5] + f) >>> 0;
+    H[6] = (H[6] + g) >>> 0;
+    H[7] = (H[7] + h) >>> 0;
   }
 
-  const result = new Uint8Array(32);
-  const view = new DataView(result.buffer);
-  view.setUint32(0, h0, false);
-  view.setUint32(4, h1, false);
-  view.setUint32(8, h2, false);
-  view.setUint32(12, h3, false);
-  view.setUint32(16, h4, false);
-  view.setUint32(20, h5, false);
-  view.setUint32(24, h6, false);
-  view.setUint32(28, h7, false);
-  return result;
+  // Produce final hash hex string
+  return H.map(v => ('00000000' + v.toString(16)).slice(-8)).join('');
 }
 
-function hmacSha256Js(keyBytes, message) {
-  const blockSize = 64;
-  if (keyBytes.length > blockSize) {
-    keyBytes = sha256Blocks(String.fromCharCode(...keyBytes));
-    keyBytes = new Uint8Array(keyBytes);
+function hmacSha256Js(key, message) {
+  const enc = new TextEncoder();
+  let k = typeof key === 'string' ? new Uint8Array(enc.encode(key)) : new Uint8Array(key);
+  // Hash key if longer than block size
+  if (k.length > 64) {
+    const hashHex = sha256(String.fromCharCode(...k));
+    k = new Uint8Array(hashHex.match(/.{2}/g).map(b => parseInt(b, 16)));
   }
-  if (keyBytes.length < blockSize) {
-    const padded = new Uint8Array(blockSize);
-    padded.set(keyBytes);
-    keyBytes = padded;
+  // Pad key to block size
+  const padded = new Uint8Array(64);
+  padded.set(k);
+  const oKeyPad = new Uint8Array(64);
+  const iKeyPad = new Uint8Array(64);
+  for (let i = 0; i < 64; i++) {
+    oKeyPad[i] = padded[i] ^ 0x5c;
+    iKeyPad[i] = padded[i] ^ 0x36;
   }
-
-  const oKeyPad = new Uint8Array(blockSize);
-  const iKeyPad = new Uint8Array(blockSize);
-  for (let i = 0; i < blockSize; i++) {
-    oKeyPad[i] = keyBytes[i] ^ 0x5c;
-    iKeyPad[i] = keyBytes[i] ^ 0x36;
-  }
-
-  const innerMsg = String.fromCharCode(...iKeyPad) + message;
-  const innerHash = sha256Blocks(innerMsg);
-  const outerMsg = String.fromCharCode(...oKeyPad) + String.fromCharCode(...innerHash);
-  return sha256Blocks(outerMsg);
+  const inner = String.fromCharCode(...iKeyPad) + message;
+  const innerHash = sha256(inner);
+  const outer = String.fromCharCode(...oKeyPad) + innerHash;
+  return sha256(outer);
 }
 
 function bufferToHex(buffer) {
@@ -124,36 +129,20 @@ function bufferToHex(buffer) {
 
 // ─── Web Crypto API with pure-JS fallback ─────────────────────────
 
-// Self-test to validate the JS fallback implementation
-function runShaSelfTest() {
-  // SHA-256("") = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-  const emptyHash = bufferToHex(sha256Blocks(""));
-  if (emptyHash !== "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") {
-    console.error("[s3Client] SHA-256 self-test FAILED (empty string):", emptyHash);
-    return false;
-  }
-  // SHA-256("test") = 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
-  const testHash = bufferToHex(sha256Blocks("test"));
-  if (testHash !== "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08") {
-    console.error("[s3Client] SHA-256 self-test FAILED (test string):", testHash);
-    return false;
-  }
-  // HMAC-SHA256("key", "The quick brown fox jumps over the lazy dog") known value
-  // f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8
-  const keyBytes = encoder.encode("key");
-  const hmacTest = bufferToHex(hmacSha256Js(keyBytes, "The quick brown fox jumps over the lazy dog"));
-  const expectedHmac = "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8";
-  if (hmacTest !== expectedHmac) {
-    console.error("[s3Client] HMAC-SHA256 self-test FAILED:", hmacTest);
-    return false;
-  }
-  console.log("[s3Client] SHA-256/HMAC self-test PASSED");
-  return true;
-}
-
-let shaSelfTestPassed = false;
+let shaFallbackVerified = false;
 
 const cryptoSubtle = typeof crypto !== "undefined" && crypto.subtle;
+
+function verifySha256Fallback() {
+  const emptyHash = sha256("");
+  const testHash = sha256("test");
+  const keyBytes = encoder.encode("key");
+  const hmacTest = hmacSha256Js(keyBytes, "The quick brown fox jumps over the lazy dog");
+  if (emptyHash !== "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") return false;
+  if (testHash !== "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08") return false;
+  if (hmacTest !== "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8") return false;
+  return true;
+}
 
 async function sha256Hex(message) {
   const data = typeof message === "string" ? encoder.encode(message) : message;
@@ -161,16 +150,16 @@ async function sha256Hex(message) {
     const hash = await cryptoSubtle.digest("SHA-256", data);
     return bufferToHex(hash);
   }
-  // Run self-test once
-  if (!shaSelfTestPassed) {
-    shaSelfTestPassed = runShaSelfTest();
-    if (!shaSelfTestPassed) {
-      throw new Error("[s3Client] SHA-256 JS fallback self-test failed! Cannot sign requests.");
+  // One-time verification of the pure-JS implementation
+  if (!shaFallbackVerified) {
+    shaFallbackVerified = verifySha256Fallback();
+    if (!shaFallbackVerified) {
+      throw new Error("SHA-256 JS fallback self-test failed!");
     }
+    console.log("[s3Client] SHA-256/HMAC fallback self-test PASSED");
   }
-  // Fallback: pure-JS SHA-256
   const str = typeof message === "string" ? message : String.fromCharCode(...new Uint8Array(data));
-  return bufferToHex(sha256Blocks(str));
+  return sha256(str);
 }
 
 async function hmacSha256(key, message) {
@@ -186,13 +175,12 @@ async function hmacSha256(key, message) {
     );
     return cryptoSubtle.sign("HMAC", cryptoKey, messageData);
   }
-  const keyBytes = typeof key === "string" ? encoder.encode(key) : new Uint8Array(key);
-  return hmacSha256Js(keyBytes, message);
+  return hmacSha256Js(key, message);
 }
 
 async function hmacSha256Hex(key, message) {
   const sig = await hmacSha256(key, message);
-  return bufferToHex(sig);
+  return typeof sig === "string" ? sig : bufferToHex(sig);
 }
 
 async function deriveSigningKey(secretKey, dateStamp, region, service) {
