@@ -1,10 +1,7 @@
 module.exports = {
   publicPath: './',
   devServer: {
-    client: {
-      webSocketURL: 'auto://0.0.0.0:0/ws',
-    },
-    allowedHosts: 'all',
+    disableHostCheck: true,
   },
   pluginOptions: {
     electronBuilder: {
