@@ -551,6 +551,7 @@ import { Modal } from "bootstrap";
 export default {
   name: "configModal",
   components: { toastMessage, linkList, s3HistoryModal },
+  emits: ["changeColumns"],
   props: {
     configProp: { required: true },
   },

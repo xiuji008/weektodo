@@ -448,30 +448,42 @@ export default {
 
   /**
    * Test connectivity by attempting a HEAD request on the object.
+   * MinIO returns 403 when the object/bucket doesn't exist (AccessDenied),
+   * which still indicates the connection is valid.
    * @returns {Promise<{ok: boolean, status: number, error?: string}>}
    */
   async testConnection(config) {
-    const { url, fetchHeaders } = await signRequest({
-      method: "HEAD",
-      endpoint: config.endpoint,
-      bucket: config.bucket,
-      key: config.objectKey || "weektodo-test",
-      region: config.region || "us-east-1",
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-      body: "",
-    });
+    // Strategy: try HEAD on object, fallback to HEAD on bucket root
+    const tryHead = async (key) => {
+      const { url, fetchHeaders } = await signRequest({
+        method: "HEAD",
+        endpoint: config.endpoint,
+        bucket: config.bucket,
+        key,
+        region: config.region || "us-east-1",
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+        body: "",
+      });
+      const response = await fetch(url, { method: "HEAD", headers: fetchHeaders });
+      return response;
+    };
 
     try {
-      const response = await fetch(url, {
-        method: "HEAD",
-        headers: fetchHeaders,
-      });
-      // 200 = object exists, 404 = bucket accessible but object not found
-      // Both indicate the connection works
-      if (response.ok || response.status === 404) {
+      // First try HEAD on the configured object key
+      let response = await tryHead(config.objectKey || "weektodo-test");
+
+      // 200/204 = object exists, 404 = bucket accessible, 403 = credentials valid but no list/read permission
+      if (response.ok || response.status === 404 || response.status === 403) {
         return { ok: true, status: response.status };
       }
+
+      // Fallback: try HEAD on the bucket root (MinIO often allows this)
+      response = await tryHead("");
+      if (response.ok || response.status === 404 || response.status === 403) {
+        return { ok: true, status: response.status };
+      }
+
       const errText = await response.text().catch(() => "");
       return { ok: false, status: response.status, error: errText };
     } catch (err) {
