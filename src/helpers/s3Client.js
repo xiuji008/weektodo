@@ -124,6 +124,35 @@ function bufferToHex(buffer) {
 
 // ─── Web Crypto API with pure-JS fallback ─────────────────────────
 
+// Self-test to validate the JS fallback implementation
+function runShaSelfTest() {
+  // SHA-256("") = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+  const emptyHash = bufferToHex(sha256Blocks(""));
+  if (emptyHash !== "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") {
+    console.error("[s3Client] SHA-256 self-test FAILED (empty string):", emptyHash);
+    return false;
+  }
+  // SHA-256("test") = 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+  const testHash = bufferToHex(sha256Blocks("test"));
+  if (testHash !== "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08") {
+    console.error("[s3Client] SHA-256 self-test FAILED (test string):", testHash);
+    return false;
+  }
+  // HMAC-SHA256("key", "The quick brown fox jumps over the lazy dog") known value
+  // f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8
+  const keyBytes = encoder.encode("key");
+  const hmacTest = bufferToHex(hmacSha256Js(keyBytes, "The quick brown fox jumps over the lazy dog"));
+  const expectedHmac = "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8";
+  if (hmacTest !== expectedHmac) {
+    console.error("[s3Client] HMAC-SHA256 self-test FAILED:", hmacTest);
+    return false;
+  }
+  console.log("[s3Client] SHA-256/HMAC self-test PASSED");
+  return true;
+}
+
+let shaSelfTestPassed = false;
+
 const cryptoSubtle = typeof crypto !== "undefined" && crypto.subtle;
 
 async function sha256Hex(message) {
@@ -131,6 +160,13 @@ async function sha256Hex(message) {
   if (cryptoSubtle) {
     const hash = await cryptoSubtle.digest("SHA-256", data);
     return bufferToHex(hash);
+  }
+  // Run self-test once
+  if (!shaSelfTestPassed) {
+    shaSelfTestPassed = runShaSelfTest();
+    if (!shaSelfTestPassed) {
+      throw new Error("[s3Client] SHA-256 JS fallback self-test failed! Cannot sign requests.");
+    }
   }
   // Fallback: pure-JS SHA-256
   const str = typeof message === "string" ? message : String.fromCharCode(...new Uint8Array(data));
@@ -178,6 +214,22 @@ function uriEncodePath(str) {
 
 function trimEndpoint(endpoint) {
   return endpoint.replace(/\/+$/, "");
+}
+
+// ─── MinIO/S3 error response parser ─────────────────────────────
+
+function parseS3Error(xmlText) {
+  if (!xmlText || !xmlText.includes("<Error>")) return xmlText;
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlText, "text/xml");
+    const code = doc.getElementsByTagName("Code")[0]?.textContent || "";
+    const msg = doc.getElementsByTagName("Message")[0]?.textContent || "";
+    const resource = doc.getElementsByTagName("Resource")[0]?.textContent || "";
+    return `[${code}] ${msg}${resource ? " (" + resource + ")" : ""}`;
+  } catch {
+    return xmlText.slice(0, 300);
+  }
 }
 
 /**
@@ -289,7 +341,7 @@ export default {
 
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
-      return { ok: false, status: response.status, error: errText };
+      return { ok: false, status: response.status, error: parseS3Error(errText) };
     }
     return { ok: true, status: response.status };
   },
@@ -325,7 +377,7 @@ export default {
 
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
-      return { ok: false, status: response.status, error: errText };
+      return { ok: false, status: response.status, error: parseS3Error(errText) };
     }
 
     const text = await response.text();
@@ -355,7 +407,7 @@ export default {
 
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
-      return { ok: false, status: response.status, error: errText };
+      return { ok: false, status: response.status, error: parseS3Error(errText) };
     }
     return { ok: true, status: response.status };
   },
@@ -426,7 +478,7 @@ export default {
 
       if (!response.ok) {
         const errText = await response.text().catch(() => "");
-        return { ok: false, status: response.status, error: errText };
+        return { ok: false, status: response.status, error: parseS3Error(errText) };
       }
 
       const xmlText = await response.text();
@@ -485,9 +537,8 @@ export default {
       }
 
       const errText = await response.text().catch(() => "");
-      return { ok: false, status: response.status, error: errText };
+      return { ok: false, status: response.status, error: parseS3Error(errText) };
     } catch (err) {
       return { ok: false, status: 0, error: err.message };
     }
   },
-};
