@@ -43,6 +43,11 @@
           <i class="bi-reply-all"></i> <span>{{ $t('ui.postpone') }}</span>
         </button>
       </li>
+      <li v-show="customTodoList">
+        <button class="dropdown-item" type="button" @click="openCustomAiTodoModal">
+          <i class="bi-stars"></i> <span>{{ $t('ui.aiTodoGenerate') }}</span>
+        </button>
+      </li>
       <li>
         <button class="dropdown-item" type="button" @click="copyListTasksToClipboard">
           <i class="bi-clipboard"></i> <span>{{ $t('ui.copyTasks') }}</span>
@@ -65,6 +70,108 @@
       </li>
     </ul>
   </div>
+
+  <!-- ========== AI 自定义列表待办生成弹框 ========== -->
+  <div
+    class="modal fade"
+    :id="aiCustomModalId"
+    tabindex="-1"
+    aria-hidden="true"
+    data-bs-backdrop="static"
+  >
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="bi-stars me-1"></i>
+            AI 生成待办 — {{ todoListName || $t('ui.newList') }}
+          </h5>
+          <i class="bi-x close-modal" data-bs-dismiss="modal"></i>
+        </div>
+
+        <div class="modal-body p-0 ai-todo-modal-body">
+          <!-- 步骤1：输入描述 -->
+          <div v-if="!aiTodos.length && !aiTodoGenerating" class="ai-todo-step">
+            <div class="ai-todo-step-content">
+              <p class="ai-todo-desc-hint">{{ $t("ui.aiTodoEmpty") }}</p>
+              <textarea
+                class="ai-todo-textarea"
+                v-model="aiTodoInput"
+                :placeholder="$t('ui.aiTodoPlaceholder')"
+                rows="5"
+              ></textarea>
+              <div class="ai-todo-actions-top">
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  :class="darkTheme ? 'btn-light' : 'btn-dark'"
+                  @click="generateAiTodos"
+                  :disabled="!aiTodoInput.trim() || !aiReady || aiTodoGenerating"
+                  :title="!aiReady ? $t('ui.aiNotConfiguredHint') : ''"
+                >
+                  <i class="bi-stars me-1"></i>
+                  {{ $t("ui.aiTodoGenerate") }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 步骤2：生成中 -->
+          <div v-if="aiTodoGenerating" class="ai-todo-step ai-todo-step-stream">
+            <div class="ai-streaming-indicator">
+              <i class="bi-arrow-repeat spinning me-2"></i>
+              <span>{{ $t("ui.aiGenerating") }}</span>
+            </div>
+            <div class="ai-todo-stream-body">
+              <pre class="ai-json-stream">{{ aiTodoRaw || $t('ui.aiStreamInitializing') }}</pre>
+            </div>
+          </div>
+
+          <!-- 步骤3：生成完成 - 展示待办卡片 -->
+          <div v-if="!aiTodoGenerating && aiTodos.length" class="ai-todo-step ai-todo-step-done">
+            <div class="ai-todo-result-header">
+              <span>{{ $t('ui.aiTodoPreview', { count: aiTodos.length }) }}</span>
+            </div>
+            <div class="ai-todo-result-list">
+              <div class="ai-todo-items">
+                <div v-for="(task, ti) in aiTodos" :key="ti" class="ai-todo-item">
+                  <span v-if="task.emoji" class="ai-todo-item-emoji">{{ task.emoji }}</span>
+                  <span class="ai-todo-item-text">{{ task.text }}</span>
+                  <span v-if="task.time" class="ai-todo-item-time">{{ task.time }}</span>
+                  <span
+                    v-if="task.color && task.color !== 'none'"
+                    class="ai-todo-item-color"
+                    :style="{ background: task.color }"
+                  ></span>
+                </div>
+              </div>
+            </div>
+            <div class="ai-todo-done-actions">
+              <button
+                type="button"
+                class="btn btn-sm btn-success"
+                @click="applyAiTodos"
+                :disabled="applying"
+              >
+                <i v-if="applying" class="bi-arrow-repeat spinning me-1"></i>
+                <i v-else class="bi-list-check me-1"></i>
+                {{ $t("ui.aiTodoUse") }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm"
+                :class="darkTheme ? 'btn-outline-light' : 'btn-outline-secondary'"
+                @click="resetAiTodo"
+              >
+                <i class="bi-arrow-repeat me-1"></i>
+                {{ $t("ui.aiRegenerate") }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
@@ -74,7 +181,9 @@ import customToDoListIdsRepository from "../repositories/customToDoListIdsReposi
 import notifications from "../helpers/notifications";
 import tasksHelper from "../helpers/tasksHelper";
 import { Solar, HolidayUtil } from 'lunar-javascript';
-import { Toast } from 'bootstrap';
+import { Toast, Modal } from 'bootstrap';
+import aiService from "../helpers/aiService";
+import aiConfigRepository from "../repositories/aiConfigRepository";
 
 export default {
   components: {},
@@ -88,6 +197,12 @@ export default {
     return {
       editing: false,
       name: "",
+      // AI 生成待办
+      aiTodoInput: "",
+      aiTodoGenerating: false,
+      aiTodoRaw: "",
+      aiTodos: [],
+      applying: false,
     };
   },
   mounted() {
@@ -193,9 +308,160 @@ export default {
           .getElementsByClassName("new-todo-input")[0]
           .focus();
       });
-    }
+    },
+
+    // ========== AI 自定义列表待办生成 ==========
+    openCustomAiTodoModal: function () {
+      this.resetAiTodo();
+      this.$nextTick(() => {
+        const el = document.getElementById(this.aiCustomModalId);
+        if (el) {
+          const modal = new Modal(el);
+          modal.show();
+        }
+      });
+    },
+
+    generateAiTodos: function () {
+      if (!this.aiTodoInput.trim() || this.aiTodoGenerating) return;
+
+      this.aiTodoGenerating = true;
+      this.aiTodoRaw = "";
+      this.aiTodos = [];
+
+      const todoSchema = `{
+  "text": "任务标题",         // 必填
+  "time": "14:00",           // 可选
+  "color": "#77e785",        // 可选
+  "priority": 1,             // 可选，0=低 1=中 2=高
+  "emoji": "📝",             // 可选
+  "desc": "备注"             // 可选
+}`;
+
+      const listName = this.todoListName || "自定义列表";
+
+      const userMessage = [
+        "你是一个智能待办规划助手。用户将描述想做的事情，请根据描述生成结构化的待办事项列表。",
+        "",
+        "## 每个待办事项的 JSON 格式",
+        "```json",
+        todoSchema,
+        "```",
+        "",
+        `## 目标列表：${listName}`,
+        "",
+        "## 输出要求",
+        "1. 输出纯 JSON 数组，不要包含 markdown 包裹标记",
+        "2. 不需要 dateId 字段",
+        "3. 使用中文任务标题，简洁明确",
+        "4. 尽量完整覆盖用户描述，不要遗漏重要事项",
+        "",
+        "## 用户需求",
+        this.aiTodoInput.trim(),
+      ].join("\n");
+
+      aiService.chatStream({
+        userMessage,
+        systemPrompt: aiConfigRepository.load().todoSystemPrompt,
+        onChunk: (fullContent) => {
+          this.aiTodoRaw = fullContent;
+        },
+        onDone: (fullContent) => {
+          this.aiTodoGenerating = false;
+          this.aiTodoRaw = fullContent;
+          this.parseAiTodos(fullContent);
+        },
+        onError: (error) => {
+          this.aiTodoGenerating = false;
+          this.aiTodoRaw = "";
+          alert("AI 生成失败：" + error);
+        },
+      });
+    },
+
+    parseAiTodos: function (raw) {
+      try {
+        let json = raw.trim();
+        const jsonMatch = json.match(/\[[\s\S]*\]/);
+        if (jsonMatch) json = jsonMatch[0];
+        const parsed = JSON.parse(json);
+        if (!Array.isArray(parsed)) throw new Error("not array");
+        this.aiTodos = parsed
+          .filter((item) => item.text)
+          .map((item) => ({
+            text: String(item.text).trim(),
+            time: item.time || "",
+            color: item.color && item.color !== "none" ? item.color : "none",
+            priority: typeof item.priority === "number" ? item.priority : 0,
+            emoji: item.emoji || "",
+            desc: item.desc || "",
+          }));
+      } catch (e) {
+        console.error("解析 AI 待办失败:", e);
+      }
+    },
+
+    resetAiTodo: function () {
+      this.aiTodoGenerating = false;
+      this.aiTodoRaw = "";
+      this.aiTodos = [];
+      this.aiTodoInput = "";
+      this.applying = false;
+    },
+
+    applyAiTodos: function () {
+      if (this.applying || !this.aiTodos.length) return;
+      this.applying = true;
+
+      let totalAdded = 0;
+
+      this.aiTodos.forEach((task) => {
+        const todo = {
+          text: task.text,
+          checked: false,
+          listId: this.id,
+          desc: task.desc || "",
+          subTaskList: [],
+          color: task.color || "none",
+          priority: task.priority || 0,
+          tags: [],
+          time: task.time || null,
+          alarm: false,
+          repeatingEvent: null,
+          emoji: task.emoji || "",
+          status: "pending",
+        };
+        this.$store.commit("addTodo", todo);
+        totalAdded++;
+      });
+
+      this.updateTodoList(this.id, this.$store.getters.todoLists[this.id]);
+      this.applying = false;
+      alert(`✅ 已成功添加 ${totalAdded} 项待办到「${this.todoListName}」！`);
+
+      // 关闭弹框
+      const el = document.getElementById(this.aiCustomModalId);
+      if (el) {
+        const modal = Modal.getInstance(el);
+        if (modal) modal.hide();
+      }
+    },
   },
   computed: {
+    aiCustomModalId: function () {
+      return `aiCustomTodoModal_${this.id}`;
+    },
+    aiReady: function () {
+      return aiConfigRepository.isConfigured();
+    },
+    todoListName: function () {
+      if (!this.customTodoList || this.cTodoListIndex === undefined) return '';
+      const ids = this.$store.getters.cTodoListIds;
+      return ids[this.cTodoListIndex] ? ids[this.cTodoListIndex].listName : '';
+    },
+    darkTheme: function () {
+      return this.$store.getters.config.darkTheme;
+    },
     is_today: function () {
       return moment().format("YYYYMMDD") == this.id;
     },
@@ -435,5 +701,222 @@ export default {
 .bi-reply-all,
 .bi-files {
   transform: scaleX(-1);
+}
+
+/* ========== AI 自定义列表待办弹框样式 ========== */
+.modal-lg {
+  max-width: 820px;
+}
+
+.ai-todo-modal-body {
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-todo-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-todo-step-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px;
+}
+
+.ai-todo-desc-hint {
+  font-size: 0.85rem;
+  color: #888;
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.dark-theme .ai-todo-desc-hint {
+  color: #8b949e;
+}
+
+.ai-todo-textarea {
+  width: 100%;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  padding: 12px;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background: #fff;
+  color: #24292f;
+  outline: none;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 120px;
+}
+
+.dark-theme .ai-todo-textarea {
+  background: #0d1117;
+  color: #c9d1d9;
+  border-color: #30363d;
+}
+
+.ai-todo-textarea:focus {
+  border-color: #0969da;
+  box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.15);
+}
+
+.dark-theme .ai-todo-textarea:focus {
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.15);
+}
+
+.ai-todo-actions-top {
+  display: flex;
+  justify-content: center;
+  padding: 14px 0 0;
+  flex-shrink: 0;
+}
+
+.ai-todo-step-stream {
+  overflow-y: auto;
+}
+
+.ai-todo-stream-body {
+  flex: 1;
+  padding: 14px;
+  overflow-y: auto;
+}
+
+.ai-json-stream {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #555;
+  margin: 0;
+}
+
+.dark-theme .ai-json-stream {
+  color: #8b949e;
+}
+
+.ai-streaming-indicator {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: #0969da;
+  border-bottom: 1px solid #ddf4ff;
+  flex-shrink: 0;
+}
+
+.dark-theme .ai-streaming-indicator {
+  color: #58a6ff;
+  border-bottom-color: #1f3a5f;
+}
+
+.ai-todo-step-done {
+  overflow-y: auto;
+}
+
+.ai-todo-result-header {
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 1px solid #eaecef;
+  flex-shrink: 0;
+}
+
+.dark-theme .ai-todo-result-header {
+  color: #c9d1d9;
+  border-bottom-color: #30363d;
+}
+
+.ai-todo-result-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+
+.ai-todo-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-todo-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  background: #fff;
+  border: 1px solid #eaecef;
+}
+
+.dark-theme .ai-todo-item {
+  background: #0d1117;
+  border-color: #30363d;
+}
+
+.ai-todo-item-emoji {
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.ai-todo-item-text {
+  flex: 1;
+  min-width: 0;
+  color: #24292f;
+  word-break: break-word;
+}
+
+.dark-theme .ai-todo-item-text {
+  color: #c9d1d9;
+}
+
+.ai-todo-item-time {
+  font-size: 0.76rem;
+  color: #888;
+  flex-shrink: 0;
+  background: #eef1f5;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.dark-theme .ai-todo-item-time {
+  background: #1c2128;
+  color: #8b949e;
+}
+
+.ai-todo-item-color {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ai-todo-done-actions {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid #eaecef;
+  flex-shrink: 0;
+  justify-content: center;
+}
+
+.dark-theme .ai-todo-done-actions {
+  border-top-color: #30363d;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spinning {
+  display: inline-block;
+  animation: spin 1s linear infinite;
 }
 </style>
