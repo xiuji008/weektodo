@@ -461,11 +461,18 @@
                     v-model="aiConfig.systemPrompt"></textarea>
                 </div>
 
-                <div class="text-muted small mb-2">{{ $t("settings.aiTodoPrompt") || "待办生成提示词" }}</div>
+                <div class="text-muted small mb-2">{{ $t("settings.aiTodoPrompt") || "周待办生成提示词" }}</div>
 
                 <div class="mb-2">
                   <textarea class="form-control form-control-sm ai-prompt-textarea" rows="6"
                     v-model="aiConfig.todoSystemPrompt"></textarea>
+                </div>
+
+                <div class="text-muted small mb-2">{{ $t("settings.aiListTodoPrompt") || "自定义列表待办生成提示词" }}</div>
+
+                <div class="mb-2">
+                  <textarea class="form-control form-control-sm ai-prompt-textarea" rows="6"
+                    v-model="aiConfig.listTodoSystemPrompt"></textarea>
                 </div>
 
                 <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
@@ -766,6 +773,7 @@ export default {
     restoreAiDefaultPrompt: function () {
       this.aiConfig.systemPrompt = aiConfigRepository.DEFAULT_PROMPT;
       this.aiConfig.todoSystemPrompt = aiConfigRepository.DEFAULT_TODO_PROMPT;
+      this.aiConfig.listTodoSystemPrompt = aiConfigRepository.DEFAULT_LIST_TODO_PROMPT;
       this.setAiStatus(this.$t("settings.aiPromptRestored"), "alert-success");
     },
     setAiStatus: function (message, alertClass) {

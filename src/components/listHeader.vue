@@ -382,7 +382,7 @@ export default {
 
       aiService.chatStream({
         userMessage,
-        systemPrompt: aiConfigRepository.load().todoSystemPrompt,
+        systemPrompt: aiConfigRepository.load().listTodoSystemPrompt,
         onChunk: (fullContent) => {
           this.aiTodoRaw = fullContent;
         },

@@ -31,7 +31,7 @@ const DEFAULT_PROMPT = `你是一个专业的个人周报撰写专家。请根�
 3. 结尾附一句正向鼓励
 4. 整体控制在 300-600 字`;
 
-/** 周待办生成系统提示词（默认） */
+/** 周待办生成系统提示词（默认）- 按天分配到本周各日 */
 const DEFAULT_TODO_PROMPT = `你是一个智能周待办规划助手。请根据用户描述的本周计划，生成结构化的待办事项 JSON 数据。
 
 你必须严格遵守以下格式要求：
@@ -42,7 +42,7 @@ const DEFAULT_TODO_PROMPT = `你是一个智能周待办规划助手。请根据
      "dateId": "20260701",    // 必填，YYYYMMDD，必须使用给定的 dateId
      "text": "任务标题",       // 必填，中文，简洁明确
      "time": "14:00",         // 可选，具体时间
-     "color": "#77e785",      // 可选
+     "color": "#77e785",      // 可选，标签颜色
      "priorityLevel": "L3",   // 可选，优先级 L1~L5，默认为 L3
      "desc": "备注"           // 可选
    }
@@ -69,6 +69,44 @@ const DEFAULT_TODO_PROMPT = `你是一个智能周待办规划助手。请根据
 - **L1**：有明确截止日且是最后一天；涉及他人等待；有违约/失信/经济损失风险
 - **L2**：对长期目标有显著推动；虽无硬截止日但拖过今天会影响下周节奏
 - **L3**：日常例行事务；有截止日但在周末之后；不紧急的自我提升（**默认**）
+- **L4**：做了有加分、不做无影响；需要大块时间但当前无法安排
+- **L5**：探索性想法；暂时不具备条件的事项`;
+
+/** 自定义列表待办生成系统提示词（默认）- 无日期，属于同一列表 */
+const DEFAULT_LIST_TODO_PROMPT = `你是一个智能待办规划助手。请根据用户描述，生成一组结构化的待办事项 JSON 数据，所有事项属于同一个列表。
+
+你必须严格遵守以下格式要求：
+
+1. 输出纯 JSON 数组，不要包含任何 markdown 包裹标记（不要 \`\`\`json）
+2. 每个待办对象格式：
+   {
+     "text": "任务标题",       // 必填，中文，简洁明确
+     "time": "14:00",         // 可选，具体时间
+     "color": "#77e785",      // 可选，标签颜色（使用柔和的颜色值）
+     "priorityLevel": "L3",   // 可选，优先级 L1~L5，默认为 L3
+     "desc": "备注"           // 可选
+   }
+
+3. 不需要 dateId 字段
+4. 使用中文任务标题，简洁明确
+5. 尽量完整覆盖用户描述，不要遗漏重要事项
+6. 如果用户描述中包含多个独立事项，请拆分为多个待办
+7. 相似或相关的事项可以合并为一个待办，在 desc 中说明细节
+
+## 优先级定义（请根据任务性质和紧急程度智能分配）
+
+| 等级 | 标签 | 处理时效 | 颜色 |
+|------|------|---------|------|
+| **L1** | 今日必保 | 今天必须完成 | 🔴 红色 |
+| **L2** | 今日主攻 | 今天优先推进 | 🟠 橙色 |
+| **L3** | 本周排期 | 本周内完成即可 | 🔵 蓝色 |
+| **L4** | 有空再做 | 本月内考虑 | 🟢 绿色 |
+| **L5** | 未来待定 | 不承诺本月完成 | ⚪ 灰色 |
+
+分配指导：
+- **L1**：有明确截止日且是最后一天；涉及他人等待；有违约/失信/经济损失风险
+- **L2**：对长期目标有显著推动；虽无硬截止日但拖过今天会影响下周节奏
+- **L3**：日常例行事务；不紧急的自我提升（**默认**）
 - **L4**：做了有加分、不做无影响；需要大块时间但当前无法安排
 - **L5**：探索性想法；暂时不具备条件的事项`;
 
@@ -117,6 +155,7 @@ export default {
   PRESETS,
   DEFAULT_PROMPT,
   DEFAULT_TODO_PROMPT,
+  DEFAULT_LIST_TODO_PROMPT,
   DEFAULT_SUMMARY_PROMPT,
 
   load() {
@@ -133,6 +172,7 @@ export default {
           contextRounds: 5,
           systemPrompt: DEFAULT_PROMPT,
           todoSystemPrompt: DEFAULT_TODO_PROMPT,
+          listTodoSystemPrompt: DEFAULT_LIST_TODO_PROMPT,
           history: [],
           ...saved,
         };
@@ -148,6 +188,7 @@ export default {
       contextRounds: 5,
       systemPrompt: DEFAULT_PROMPT,
       todoSystemPrompt: DEFAULT_TODO_PROMPT,
+      listTodoSystemPrompt: DEFAULT_LIST_TODO_PROMPT,
       history: [], // [{role, content}] — recent context
     };
   },
