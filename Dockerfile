@@ -1,6 +1,6 @@
 FROM node:18-alpine AS build
 WORKDIR /app
-COPY package.json yarn.lock /app
+COPY package.json yarn.lock /app/
 ENV ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
 ENV NODE_OPTIONS=--openssl-legacy-provider
 RUN yarn config set registry https://registry.npmmirror.com/ && \
