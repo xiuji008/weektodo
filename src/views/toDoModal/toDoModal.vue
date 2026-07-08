@@ -54,6 +54,25 @@
             <repeating-event v-if="showingCalendar" :repeatingEvent="todo.repeatingEvent" :todo="todo"
               @repeatingEventSelected="changeRepeatingEvent"></repeating-event>
             <color-picker :color="todo.color" @color-selected="changeColor"></color-picker>
+            <!-- 优先级选择器 -->
+            <div class="priority-selector">
+              <span class="priority-btn"
+                :class="'priority-btn-' + (todo.priorityLevel || 'L3')"
+                @click="togglePriorityMenu"
+                :title="'优先级: ' + (todo.priorityLevel || 'L3')">
+                {{ todo.priorityLevel || 'L3' }}
+              </span>
+              <ul class="priority-menu" v-show="showPriorityMenu" @click.stop>
+                <li v-for="lvl in priorityLevels" :key="lvl.value">
+                  <button class="priority-menu-item" :class="{ active: (todo.priorityLevel || 'L3') === lvl.value }"
+                    @click="setPriority(lvl.value)">
+                    <span class="priority-dot" :class="'priority-dot-' + lvl.value"></span>
+                    <span class="priority-menu-label">{{ lvl.value }}</span>
+                    <span class="priority-menu-desc">{{ lvl.label }}</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
             <i id="btnTaskOptionMenu" class="bi-three-dots-vertical header-menu-icons" type="button"
               data-bs-toggle="dropdown" :title="$t('todoDetails.actions')"></i>
             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="btnTaskOptionMenu">
@@ -195,6 +214,14 @@ export default {
       loadingView: false,
       options: { target: '_blank', defaultProtocol: 'https' },
       clickhandler: new ClickHandler(),
+      priorityLevels: [
+        { value: "L1", label: "今日必保" },
+        { value: "L2", label: "今日主攻" },
+        { value: "L3", label: "本周排期" },
+        { value: "L4", label: "有空再做" },
+        { value: "L5", label: "未来待定" },
+      ],
+      showPriorityMenu: false,
     }
   },
   props: {
@@ -409,6 +436,7 @@ export default {
         subTaskList: this.todo.subTaskList,
         color: this.todo.color,
         priority: 0,
+        priorityLevel: this.todo.priorityLevel || "L3",
         tags: [],
         time: this.todo.time,
         alarm: this.todo.alarm,
@@ -446,6 +474,20 @@ export default {
         });
       }
       return text;
+    },
+    setPriority(level) {
+      this.todo.priorityLevel = level;
+      this.updateTodo();
+      this.showPriorityMenu = false;
+    },
+    togglePriorityMenu() {
+      this.showPriorityMenu = !this.showPriorityMenu;
+    },
+    closePriorityMenu(e) {
+      const el = document.querySelector('.priority-selector');
+      if (el && !el.contains(e.target)) {
+        this.showPriorityMenu = false;
+      }
     },
     changeColor(color) {
       this.todo.color = color;
@@ -490,6 +532,12 @@ export default {
       }
     }
   },
+  mounted() {
+    document.addEventListener('click', this.closePriorityMenu);
+  },
+  unmounted() {
+    document.removeEventListener('click', this.closePriorityMenu);
+  },
   watch: {
     selectedTodo: function (newVal) {
       this.todoList = this.$store.getters.todoLists[newVal.toDo.listId];
@@ -500,6 +548,7 @@ export default {
         this.todo["subTaskList"] = [];
         this.todo["color"] = "none";
         this.todo["priority"] = 0;
+        this.todo["priorityLevel"] = "L3";
         this.todo["tags"] = [];
         this.todo["time"] = null;
         this.todo["alarm"] = false;
@@ -842,5 +891,99 @@ export default {
 
 .completed-task {
   text-decoration: line-through;
+}
+
+/* 优先级选择器 */
+.priority-selector {
+  position: relative;
+  margin-left: 6px;
+}
+.priority-btn {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1.6;
+  user-select: none;
+}
+.priority-btn-L1 { background: #dc3545; color: #fff; }
+.priority-btn-L2 { background: #fd7e14; color: #fff; }
+.priority-btn-L3 { background: #0d6efd; color: #fff; }
+.priority-btn-L4 { background: #28a745; color: #fff; }
+.priority-btn-L5 { background: #6c757d; color: #fff; }
+
+.priority-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1000;
+  min-width: 160px;
+  padding: 4px 0;
+  margin: 2px 0 0;
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.dark-theme .priority-menu {
+  background: #21262d;
+  border-color: #30363d;
+}
+.priority-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  font-size: 0.8rem;
+  padding: 5px 12px;
+  border: none;
+  background: transparent;
+  color: #1e1e1e;
+  cursor: pointer;
+  text-align: left;
+}
+.dark-theme .priority-menu-item {
+  color: #c9d1d9;
+}
+.priority-menu-item:hover {
+  background-color: #f8f9fa;
+}
+.dark-theme .priority-menu-item:hover {
+  background-color: #30363d;
+}
+.priority-menu-item.active {
+  background: #e8f0fe;
+  font-weight: 600;
+}
+.dark-theme .priority-menu-item.active {
+  background: #1c2e4a;
+}
+.priority-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.priority-dot-L1 { background: #dc3545; }
+.priority-dot-L2 { background: #fd7e14; }
+.priority-dot-L3 { background: #0d6efd; }
+.priority-dot-L4 { background: #28a745; }
+.priority-dot-L5 { background: #6c757d; }
+.priority-menu-label {
+  font-weight: 600;
+  width: 26px;
+}
+.priority-menu-desc {
+  color: #888;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dark-theme .priority-menu-desc {
+  color: #8b949e;
 }
 </style>

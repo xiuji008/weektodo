@@ -1,13 +1,14 @@
-FROM node:18-alpine
+FROM node:18-alpine AS build
 WORKDIR /app
-COPY package.json /app
-COPY yarn.lock /app
-# 设置 Electron 镜像源为淘宝镜像
+COPY package.json yarn.lock /app
 ENV ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
-# Node 18 OpenSSL 兼容 Webpack 4
 ENV NODE_OPTIONS=--openssl-legacy-provider
-# --ignore-engines: 兼容 Node 18（@achrinza/node-ipc 引擎限制 8-17）
-RUN yarn install --frozen-lockfile --ignore-engines && yarn cache clean
+RUN yarn config set registry https://registry.npmmirror.com/ && \
+    yarn install --frozen-lockfile --ignore-engines && yarn cache clean
 COPY . /app
-CMD yarn run serve
-EXPOSE 8080
+RUN yarn run build
+
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

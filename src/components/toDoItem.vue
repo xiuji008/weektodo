@@ -4,10 +4,10 @@
     <div class="todo-item-container" :class="{ 'compact-view': compactView }" ref="itemContainer">
       <div v-if="!editing" class="inline-todo-item d-flex flex-column" @mouseenter="showToDoItem" @dblclick="editToDo">
         <div class="d-flex">
-          <span class="noselect item-text" :class="{ 'checked-todo': toDo.checked, 'compact-view': compactView }"
+          <span class="noselect item-text" :class="{ 'checked-todo': toDo.checked, 'compact-view': compactView }" :style="priorityStyle"
             style="flex-grow: 1">
             <span class="status-dot" :class="'status-dot-' + todoStatus"></span>
-            <span v-if="toDo.emoji" class="todo-emoji">{{ toDo.emoji }}</span>
+            <span class="priority-badge" :class="'priority-' + priorityLevel" v-if="priorityLevel">{{ priorityLabel }}</span>
             <span v-html="todoText"></span>
             <span v-if="!compactView" class="item-time mx-2" :class="{ 'checked-todo': toDo.checked }"> {{
                 timeFormat(toDo.time)
@@ -130,6 +130,17 @@ export default {
       const text = (this.toDo.text || "").trim();
       if (!text) return "?";
       return text.charAt(0).toUpperCase();
+    },
+    priorityLevel: function () {
+      return this.toDo.priorityLevel || "L3";
+    },
+    priorityLabel: function () {
+      const labels = { L1: "紧急", L2: "重要", L3: "常规", L4: "宽松", L5: "待定" };
+      return labels[this.priorityLevel] || "";
+    },
+    priorityStyle: function () {
+      const sizes = { L1: "1.05rem", L2: "0.95rem", L3: "0.865rem", L4: "0.78rem", L5: "0.72rem" };
+      return { fontSize: sizes[this.priorityLevel] || "0.865rem" };
     },
   }
 };
@@ -268,12 +279,6 @@ export default {
   margin-right: 5px;
 }
 
-.todo-emoji {
-  font-size: 1rem;
-  margin-right: 4px;
-  line-height: 1;
-}
-
 .status-dot {
   display: inline-block;
   width: 10px;
@@ -297,6 +302,29 @@ export default {
   color: #28a745;
   opacity: 1;
 }
+
+/* 优先级徽章 */
+.priority-badge {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 0 5px;
+  margin-right: 4px;
+  border-radius: 3px;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+.priority-L1 { background: #dc3545; color: #fff; }
+.priority-L2 { background: #fd7e14; color: #fff; }
+.priority-L3 { background: #0d6efd; color: #fff; }
+.priority-L4 { background: #28a745; color: #fff; }
+.priority-L5 { background: #6c757d; color: #fff; }
+
+.dark-theme .priority-L1 { background: #e35d6b; }
+.dark-theme .priority-L2 { background: #ff9f43; }
+.dark-theme .priority-L3 { background: #4d9bff; }
+.dark-theme .priority-L4 { background: #51cf66; }
+.dark-theme .priority-L5 { background: #868e96; }
 
 .todo-item-container.compact-view {
   height: 26px;

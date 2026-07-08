@@ -90,11 +90,11 @@ export default {
           subTaskList: [],
           color: "none",
           priority: 0,
+          priorityLevel: "L3",
           tags: [],
           time: null,
           alarm: false,
           repeatingEvent: null,
-          emoji: "",
           status: "pending",
         };
         this.$store.commit("addTodo", newTodo);

@@ -210,8 +210,8 @@
                   </div>
                   <div class="ai-todo-items">
                     <div v-for="(task, ti) in day.tasks" :key="ti" class="ai-todo-item">
-                      <span v-if="task.emoji" class="ai-todo-item-emoji">{{ task.emoji }}</span>
                       <span class="ai-todo-item-text">{{ task.text }}</span>
+                      <span v-if="task.priorityLevel" class="ai-todo-item-priority" :class="'ai-pri-' + task.priorityLevel">{{ task.priorityLevel }}</span>
                       <span v-if="task.time" class="ai-todo-item-time">{{ task.time }}</span>
                       <span v-if="task.color && task.color !== 'none'" class="ai-todo-item-color" :style="{ background: task.color }"></span>
                     </div>
@@ -441,10 +441,18 @@ export default {
   "text": "任务标题",         // 必填
   "time": "14:00",           // 可选
   "color": "#77e785",        // 可选
-  "priority": 1,             // 可选，0=低 1=中 2=高
-  "emoji": "📝",             // 可选
+  "priorityLevel": "L3",     // 可选，L1=今日必保 L2=今日主攻 L3=本周排期(默认) L4=有空再做 L5=未来待定
   "desc": "备注"             // 可选
 }`;
+
+      const priorityDesc = [
+        "## 优先级定义（请根据任务性质智能分配）",
+        "- **L1 / 今日必保**：有明确截止日且是最后一天；涉及他人等待；有违约/失信/经济损失风险",
+        "- **L2 / 今日主攻**：对长期目标有显著推动；虽无硬截止日但拖过今天会影响下周节奏",
+        "- **L3 / 本周排期**：日常例行事务；有截止日但在周末之后；不紧急的自我提升（默认）",
+        "- **L4 / 有空再做**：做了有加分、不做无影响；需要大块时间但当前无法安排",
+        "- **L5 / 未来待定**：探索性想法；暂时不具备条件的事项",
+      ].join("\n");
 
       const now = moment();
       const currentTime = now.format("HH:mm");
@@ -465,6 +473,8 @@ export default {
         "```json",
         todoSchema,
         "```",
+        "",
+        priorityDesc,
         "",
         "## 输出要求",
         "1. 输出纯 JSON 数组，不要包含 markdown 包裹标记",
@@ -513,11 +523,16 @@ export default {
           if (!item.dateId || !item.text) return;
           const dateId = String(item.dateId);
           if (!dayMap[dateId]) return;
+          let pl = item.priorityLevel || "L3";
+          if (typeof item.priority === "number") {
+            const legacyMap = { 2: "L1", 1: "L2", 0: "L3" };
+            pl = legacyMap[item.priority] || pl;
+          }
           dayMap[dateId].tasks.push({
             text: String(item.text).trim(),
             time: item.time || "",
             color: item.color && item.color !== "none" ? item.color : "none",
-            priority: typeof item.priority === "number" ? item.priority : 0,
+            priorityLevel: pl,
             emoji: item.emoji || "",
             desc: item.desc || "",
           });
@@ -556,9 +571,10 @@ export default {
           const todo = {
             text: task.text, checked: false, listId: day.dateId,
             desc: task.desc || "", subTaskList: [],
-            color: task.color || "none", priority: task.priority || 0,
+            color: task.color || "none", priority: 0,
+            priorityLevel: task.priorityLevel || "L3",
             tags: [], time: task.time || null, alarm: false,
-            repeatingEvent: null, emoji: task.emoji || "", status: "pending",
+            repeatingEvent: null, status: "pending",
           };
           this.$store.commit("addTodo", todo);
           totalAdded++;
@@ -605,7 +621,7 @@ export default {
           date: d.dateId, dayOfWeek: d.dayOfWeek, dateLabel: dateMoment.format("dddd MM/DD"),
           tasks: tasks.map((t) => ({
             text: t.text, checked: !!(t.checked || t.status === "done"),
-            time: t.time || "", color: t.color || "", emoji: t.emoji || "", notes: t.notes || "",
+            time: t.time || "", color: t.color || "", notes: t.notes || "",
           })),
         });
       });
@@ -966,7 +982,6 @@ export default {
 }
 .dark-theme .ai-todo-item { background: #0d1117; border-color: #30363d; }
 
-.ai-todo-item-emoji { font-size: 0.9rem; flex-shrink: 0; }
 .ai-todo-item-text {
   flex: 1;
   min-width: 0;
@@ -980,6 +995,19 @@ export default {
 }
 .dark-theme .ai-todo-item-time { background: #1c2128; color: #8b949e; }
 .ai-todo-item-color { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ai-todo-item-priority {
+  font-size: 0.65rem; font-weight: 700; padding: 0 5px; border-radius: 3px; flex-shrink: 0; line-height: 1.5;
+}
+.ai-pri-L1 { background: #dc3545; color: #fff; }
+.ai-pri-L2 { background: #fd7e14; color: #fff; }
+.ai-pri-L3 { background: #0d6efd; color: #fff; }
+.ai-pri-L4 { background: #28a745; color: #fff; }
+.ai-pri-L5 { background: #6c757d; color: #fff; }
+.dark-theme .ai-pri-L1 { background: #e35d6b; }
+.dark-theme .ai-pri-L2 { background: #ff9f43; }
+.dark-theme .ai-pri-L3 { background: #4d9bff; }
+.dark-theme .ai-pri-L4 { background: #51cf66; }
+.dark-theme .ai-pri-L5 { background: #868e96; }
 
 .ai-todo-done-actions {
   display: flex; gap: 10px;

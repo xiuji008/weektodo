@@ -20,28 +20,36 @@ const cryptoSubtle = typeof crypto !== "undefined" && crypto.subtle;
 async function sha256Hex(message) {
   const data = typeof message === "string" ? encoder.encode(message) : message;
   if (cryptoSubtle) {
-    const hash = await cryptoSubtle.digest("SHA-256", data);
-    return bufferToHex(hash);
+    try {
+      const hash = await cryptoSubtle.digest("SHA-256", data);
+      return bufferToHex(hash);
+    } catch {
+      // Non-secure context (e.g. http://IP) — fall through to js-sha256
+    }
   }
   return sha256(message);
 }
 
 async function hmacSha256(key, message) {
   if (cryptoSubtle) {
-    const keyData = typeof key === "string" ? encoder.encode(key) : key;
-    const messageData = encoder.encode(message);
-    const cryptoKey = await cryptoSubtle.importKey(
-      "raw",
-      keyData,
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"]
-    );
-    return cryptoSubtle.sign("HMAC", cryptoKey, messageData);
+    try {
+      const keyData = typeof key === "string" ? encoder.encode(key) : key;
+      const messageData = encoder.encode(message);
+      const cryptoKey = await cryptoSubtle.importKey(
+        "raw",
+        keyData,
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+      return await cryptoSubtle.sign("HMAC", cryptoKey, messageData);
+    } catch {
+      // Non-secure context — fall through to js-sha256
+    }
   }
-  const keyStr =
-    typeof key === "string" ? key : String.fromCharCode(...new Uint8Array(key));
-  return hmac(keyStr, message);
+  // hmac supports Uint8Array for binary keys — avoid String.fromCharCode + UTF-8
+  const keyBytes = typeof key === "string" ? key : new Uint8Array(key);
+  return hmac(keyBytes, message);
 }
 
 async function hmacSha256Hex(key, message) {
@@ -49,12 +57,35 @@ async function hmacSha256Hex(key, message) {
   return typeof sig === "string" ? sig : bufferToHex(sig);
 }
 
+/** Convert a hex string to a Uint8Array of raw bytes. */
+function hexToBytes(hex) {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+  }
+  return bytes;
+}
+
+/** Ensure the key is in raw binary form (Uint8Array) regardless of
+ *  whether it came from Web Crypto (ArrayBuffer) or js-sha256 (hex string). */
+function keyToBytes(key) {
+  if (typeof key === "string") {
+    // js-sha256 fallback returns a hex string — decode to binary
+    return hexToBytes(key);
+  }
+  // Web Crypto returns ArrayBuffer — wrap as Uint8Array
+  return new Uint8Array(key);
+}
+
 async function deriveSigningKey(secretKey, dateStamp, region, service) {
-  const kDate = await hmacSha256("AWS4" + secretKey, dateStamp);
-  const kRegion = await hmacSha256(kDate, region);
-  const kService = await hmacSha256(kRegion, service);
+  let kDate = await hmacSha256("AWS4" + secretKey, dateStamp);
+  kDate = keyToBytes(kDate);
+  let kRegion = await hmacSha256(kDate, region);
+  kRegion = keyToBytes(kRegion);
+  let kService = await hmacSha256(kRegion, service);
+  kService = keyToBytes(kService);
   const kSigning = await hmacSha256(kService, "aws4_request");
-  return kSigning;
+  return keyToBytes(kSigning);
 }
 
 function uriEncodePath(str) {
@@ -353,40 +384,33 @@ export default {
   },
 
   /**
-   * Test connectivity by attempting a HEAD request on the object.
-   * MinIO returns 403 when the object/bucket doesn't exist (AccessDenied),
-   * which still indicates the connection is valid.
+   * Test connectivity with a write+delete round-trip.
+   *
+   * A HEAD on a missing object returns 403 on MinIO (AccessDenied) but 404 on
+   * AWS S3 — so a HEAD-based test is misleading and used to be reported as
+   * "success" even when credentials were wrong. Instead we PUT a tiny marker
+   * object and DELETE it again. A successful round-trip definitively proves the
+   * endpoint, region, credentials and write permission are all correct.
+   * Any non-2xx (incl. 403/401/404) is surfaced as a real failure with the
+   * server's error code (e.g. SignatureDoesNotMatch, InvalidAccessKeyId,
+   * AccessDenied, NoSuchBucket).
    * @returns {Promise<{ok: boolean, status: number, error?: string}>}
    */
   async testConnection(config) {
-    const tryHead = async (key) => {
-      const { url, fetchHeaders } = await signRequest({
-        method: "HEAD",
-        endpoint: config.endpoint,
-        bucket: config.bucket,
-        key,
-        region: config.region || "us-east-1",
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-        body: "",
-      });
-      const response = await fetch(url, { method: "HEAD", headers: fetchHeaders });
-      return response;
-    };
-
+    const testKey = "weektodo-connection-test.tmp";
     try {
-      let response = await tryHead(config.objectKey || "weektodo-test");
-      if (response.ok || response.status === 404 || response.status === 403) {
-        return { ok: true, status: response.status };
+      const put = await this.putObjectWithKey(
+        config,
+        '{"weektodo":"connection-test"}',
+        testKey
+      );
+      if (put.ok) {
+        // Clean up the marker; ignore cleanup failures (connection is proven).
+        await this.deleteObject(config, testKey).catch(() => {});
+        return { ok: true, status: put.status };
       }
-
-      response = await tryHead("");
-      if (response.ok || response.status === 404 || response.status === 403) {
-        return { ok: true, status: response.status };
-      }
-
-      const errText = await response.text().catch(() => "");
-      return { ok: false, status: response.status, error: parseS3Error(errText) };
+      // Real failure — surface the server's actual error.
+      return { ok: false, status: put.status, error: put.error };
     } catch (err) {
       return { ok: false, status: 0, error: err.message };
     }

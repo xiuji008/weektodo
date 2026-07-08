@@ -6,15 +6,10 @@
       <!-- 状态圆点（颜色表示状态，点击切换） -->
       <span class="status-dot" :class="'status-dot-' + todoStatus" :title="statusText" @click.stop="cycleStatus"></span>
 
-      <!-- Emoji 选择按钮 -->
-      <span class="emoji-picker-btn" @click.stop="toggleEmojiPicker" :title="$t('ui.emoji') || 'Emoji'">
-        <span v-if="activeTodo.toDo.emoji">{{ activeTodo.toDo.emoji }}</span>
-        <i v-else class="bi-emoji-smile"></i>
-      </span>
-
       <span class="noselect item-text" :class="{ 'checked-todo': activeTodo.toDo.checked }" style="flex-grow: 1"
         @click.middle="showToDoDetails" @dblclick.stop="editTodoItem">
         <span v-html="todoText"></span>
+        <span class="priority-badge-popup" :class="'priority-' + activePriorityLevel" v-if="activePriorityLevel">{{ activePriorityLabel }}</span>
         <span class="time-details"> {{ timeFormat(activeTodo.toDo.time) }}
           <div class="alarm-indicator"
             :class="{ 'show-alarm-indicator': notificationIndicator && activeTodo.toDo.alarm }"></div>
@@ -56,33 +51,6 @@
       <span class="todo-desc-text">{{ descText }}</span>
     </div>
 
-    <!-- Emoji 选择面板 -->
-    <div v-if="showEmojiPicker" class="emoji-picker" @click.stop @wheel.stop>
-      <div class="emoji-picker-header">
-        <span class="small fw-bold">{{ $t('ui.selectEmoji') || '选择表情' }}</span>
-        <i class="bi-x emoji-picker-close" @click="showEmojiPicker = false"></i>
-      </div>
-      <div class="emoji-categories">
-        <button v-for="(cat, i) in emojiCategories" :key="i"
-          class="emoji-cat-btn" :class="{ active: activeCategory === i }"
-          @click="activeCategory = i" :title="cat.name">
-          <span>{{ cat.icon }}</span>
-        </button>
-      </div>
-      <div class="emoji-grid">
-        <span v-for="emoji in currentEmojis" :key="emoji" class="emoji-option"
-          :class="{ 'emoji-active': activeTodo.toDo.emoji === emoji }"
-          @click="selectEmoji(emoji)">{{ emoji }}</span>
-      </div>
-      <div class="emoji-picker-footer">
-        <button v-if="activeTodo.toDo.emoji" class="emoji-clear-btn" @click="selectEmoji('')">
-          <i class="bi-trash me-1"></i>{{ $t('ui.clearEmoji') || '清除' }}
-        </button>
-        <span class="emoji-preview" v-if="activeTodo.toDo.emoji">{{ activeTodo.toDo.emoji }}</span>
-        <span class="emoji-preview-muted" v-else>—</span>
-      </div>
-    </div>
-
     <div v-if="activeTodo.toDo.subTaskList && activeTodo.toDo.subTaskList.length > 0" class="todo-item-sub-tasks">
       <ul class="sub-tasks">
         <li v-for="(subTask, index) in activeTodo.toDo.subTaskList" :key="index" class="sub-task">
@@ -107,16 +75,6 @@ import notifications from "../helpers/notifications";
 import linkifyStr from 'linkify-string';
 import tasksHelper from "../helpers/tasksHelper";
 
-const EMOJI_CATEGORIES = [
-  { name: "常用", icon: "⭐", emojis: ["📝", "✅", "⭐", "🔥", "💡", "📌", "🎯", "🚀", "💬", "⚠️", "❤️", "✨", "🎉", "👍", "👎", "💪", "🤔", "👀", "🆗", "❌"] },
-  { name: "表情", icon: "😀", emojis: ["😀", "😁", "😂", "🤣", "😃", "😄", "😅", "😆", "😉", "😊", "😋", "😎", "😍", "😘", "🤗", "🤔", "😐", "😑", "😶", "🙄", "😏", "😣", "😥", "😮", "🤐", "😯", "😪", "😫", "🥱", "😴", "😌", "😛", "😜", "🤤", "😒", "😓", "😔", "😕", "🙃", "🫠", "🥲", "😷", "🤒", "🤕", "🤢", "🤮", "🥵", "🥶", "🥴", "😵", "🤯", "🤠", "🥳", "🥸", "😎", "🤓", "🧐", "😢", "😭", "😤", "😠", "😡", "🤬", "😈", "👿", "💀", "☠️", "💩", "🤡", "👹", "👺", "👻", "👽", "🐾", "😺", "😸", "😻"] },
-  { name: "工作", icon: "💼", emojis: ["💼", "📈", "📉", "💰", "📊", "🏦", "💳", "💵", "🏷️", "🎁", "📚", "✏️", "🎓", "🔬", "💻", "🖥️", "📱", "⌨️", "🖱️", "🗂️", "📝", "📋", "📁", "📂", "📅", "📆", "🗓️", "⏰", "⏳", "🔔", "📌", "📎", "🖇️", "📏", "📐", "✂️", "🗃️", "🗄️", "🗑️", "🔒", "🔓", "🔏", "🔑", "🗝️", "🔨", "🪓", "🛠️", "⛏️", "⚙️", "🧰", "🔗", "🧷"] },
-  { name: "生活", icon: "🏠", emojis: ["🏠", "🏡", "🚗", "✈️", "🚆", "🏝️", "⛰️", "🌊", "🌅", "🌙", "☀️", "🍕", "☕", "🍔", "🍣", "🍰", "🍷", "🍺", "🥗", "🍱", "🍩", "🍳", "🥚", "🥛", "🍵", "🧃", "🥤", "🍺", "🍷", "🥂", "🍽️", "🍴", "🧂", "🛒", "💊", "🩺", "🧹", "🧺", "🧽", "🧴", "🚿", "🛁", "🚽", "🛏️", "🛋️", "🪑", "🚪", "🪟", "🛎️", "🔑", "🛍️", "📦", "🎁"] },
-  { name: "运动", icon: "⚽", emojis: ["🏃", "💪", "🧘", "⚽", "🏀", "🏈", "🎾", "🎱", "🏓", "🏸", "🥊", "🥋", "⛳", "⛸️", "🎣", "🎽", " skiing ", "🤺", "🏋️", "🤼", "🤸", "⛹️", "🤾", "🏌️", "🏇", "🧴", "🧷", "🎿", "🏂", "🏋️‍♀️", "🤹", "🎯", "🎮", "🎲", "🧩", "🎳", "🏁", "🏆", "🥇", "🥈", "🥉", "🏅", "🎖️"] },
-  { name: "自然", icon: "🌸", emojis: ["🌸", "🌺", "🌻", "🌹", "🌷", "🌼", "🌱", "🌳", "🌲", "🌴", "🌵", "🍀", "🍁", "🍂", "🍃", "🌾", "🌿", "☘️", "🌹", "🥀", "🌷", "🌻", "🌼", "🌸", "🌺", "🌊", "🌪️", "🌈", "☀️", "🌤️", "⛅", "🌥️", "☁️", "🌦️", "🌧️", "⛈️", "🌩️", "🌨️", "❄️", "⛄", "🌬️", "💨", "💧", "💦", "🔥", "⭐", "🌟", "✨", "⚡", "☄️", "💥", "🌙", "🌚", "🌛", "🌜", "☀️", "🌝"] },
-  { name: "符号", icon: "❤️", emojis: ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔", "❣️", "💕", "💞", "💓", "💗", "💖", "💘", "💝", "💟", "🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "⚫", "⚪", "🟤", "🔺", "🔻", "🔸", "🔹", "🔶", "🔷", "💯", "✅", "❌", "❎", "➕", "➖", "➗", "✖️", "♾️", "‼️", "⁉️", "❓", "❔", "❕", "〰️"] },
-];
-
 export default {
   components: {},
   props: {
@@ -129,9 +87,6 @@ export default {
       todoDragging: false,
       options: { target: '_blank', defaultProtocol: 'https' },
       scrollingTimeOut: null,
-      showEmojiPicker: false,
-      emojiCategories: EMOJI_CATEGORIES,
-      activeCategory: 0,
       showStatusMenu: false,
     };
   },
@@ -249,33 +204,6 @@ export default {
       this._statusHovering = false;
       document.removeEventListener('click', this.closeStatusMenuOnOutside);
     },
-    toggleEmojiPicker: function () {
-      this.showEmojiPicker = !this.showEmojiPicker;
-      if (this.showEmojiPicker) {
-        this.showStatusMenu = false;
-        setTimeout(() => {
-          document.addEventListener('click', this.closeEmojiPickerOnOutside);
-        }, 0);
-      } else {
-        document.removeEventListener('click', this.closeEmojiPickerOnOutside);
-      }
-    },
-    closeEmojiPickerOnOutside: function (e) {
-      const picker = document.querySelector('.emoji-picker');
-      const btn = document.querySelector('.emoji-picker-btn');
-      if (picker && (picker.contains(e.target) || (btn && btn.contains(e.target)))) return;
-      this.showEmojiPicker = false;
-      document.removeEventListener('click', this.closeEmojiPickerOnOutside);
-    },
-    selectEmoji: function (emoji) {
-      this.$store.commit("updateTodoEmoji", {
-        toDoListId: this.activeTodo.toDoListId,
-        index: this.activeTodo.index,
-        emoji: emoji,
-      });
-      toDoListRepository.update(this.activeTodo.toDoListId, this.$store.getters.todoLists[this.activeTodo.toDoListId]);
-      this.showEmojiPicker = false;
-    },
     startDrag: function (event, item, index) {
       event.dataTransfer.dropEffect = "move";
       event.dataTransfer.effectAllowed = "move";
@@ -336,7 +264,6 @@ export default {
   },
   unmounted() {
     document.removeEventListener('click', this.closeStatusMenuOnOutside);
-    document.removeEventListener('click', this.closeEmojiPickerOnOutside);
   },
   computed: {
     todoText: function () {
@@ -366,8 +293,12 @@ export default {
       if (!text) return "?";
       return text.charAt(0).toUpperCase();
     },
-    currentEmojis: function () {
-      return this.emojiCategories[this.activeCategory].emojis;
+    activePriorityLevel: function () {
+      return this.activeTodo.toDo.priorityLevel || "L3";
+    },
+    activePriorityLabel: function () {
+      const labels = { L1: "紧急", L2: "重要", L3: "常规", L4: "宽松", L5: "待定" };
+      return labels[this.activePriorityLevel] || "";
     },
     statusText: function () {
       const map = {
@@ -589,6 +520,18 @@ export default {
   margin-right: 5px;
 }
 
+/* 优先级徽章（悬浮面板） */
+.priority-badge-popup {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0 6px;
+  margin-left: 6px;
+  border-radius: 3px;
+  line-height: 1.5;
+  vertical-align: middle;
+}
+
 .bi-check-circle-fill,
 .bi-check-circle {
   opacity: 0.7;
@@ -611,32 +554,17 @@ export default {
 .status-dot-done { background-color: #28a745; }
 .status-dot-cancelled { background-color: #fd7e14; }
 
-/* Emoji 按钮 */
-.emoji-picker-btn {
-  font-size: 1.1rem;
-  cursor: pointer;
-  padding: 2px 6px;
-  margin-left: 4px;
-  border-radius: 5px;
-  flex-grow: 0;
-  display: inline-flex;
-  align-items: center;
-  min-width: 24px;
-  justify-content: center;
-
-  &:hover {
-    background-color: #eaecef;
-  }
-
-  .dark-theme &:hover {
-    background-color: #30363d;
-  }
-
-  i {
-    color: #888;
-    font-size: 1rem;
-  }
-}
+/* 优先级徽章颜色 */
+.priority-L1 { background: #dc3545; color: #fff; }
+.priority-L2 { background: #fd7e14; color: #fff; }
+.priority-L3 { background: #0d6efd; color: #fff; }
+.priority-L4 { background: #28a745; color: #fff; }
+.priority-L5 { background: #6c757d; color: #fff; }
+.dark-theme .priority-L1 { background: #e35d6b; }
+.dark-theme .priority-L2 { background: #ff9f43; }
+.dark-theme .priority-L3 { background: #4d9bff; }
+.dark-theme .priority-L4 { background: #51cf66; }
+.dark-theme .priority-L5 { background: #868e96; }
 
 /* 状态切换按钮（中文 + 颜色） */
 .status-btn {
@@ -769,213 +697,5 @@ export default {
   height: 9px;
   border-radius: 50%;
   flex-shrink: 0;
-}
-
-/* Emoji 选择面板 */
-.emoji-picker {
-  position: relative;
-  margin: 4px 8px 8px 8px;
-  padding: 8px;
-  border-radius: 8px;
-  background-color: #ffffff;
-  border: 1px solid #eaecef;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-
-  .dark-theme & {
-    background-color: #161b22;
-    border-color: #30363d;
-  }
-}
-
-.emoji-picker-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #eaecef;
-
-  .dark-theme & {
-    border-bottom-color: #30363d;
-  }
-}
-
-.emoji-picker-close {
-  cursor: pointer;
-  color: #888;
-  font-size: 1rem;
-  padding: 2px 4px;
-  border-radius: 4px;
-
-  &:hover {
-    color: #000;
-    background-color: #eaecef;
-  }
-
-  .dark-theme &:hover {
-    color: #fff;
-    background-color: #30363d;
-  }
-}
-
-/* 分类标签 */
-.emoji-categories {
-  display: flex;
-  gap: 2px;
-  margin-bottom: 6px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #eaecef;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-
-  .dark-theme & {
-    border-bottom-color: #30363d;
-  }
-}
-
-.emoji-cat-btn {
-  flex: 0 0 auto;
-  font-size: 1rem;
-  padding: 4px 8px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  opacity: 0.6;
-  transition: all 0.15s;
-
-  &:hover {
-    background-color: #eaecef;
-    opacity: 1;
-  }
-
-  &.active {
-    background-color: #28a745;
-    opacity: 1;
-  }
-
-  .dark-theme &:hover {
-    background-color: #30363d;
-  }
-}
-
-/* Emoji 网格 */
-.emoji-grid {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 2px;
-  max-height: 200px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 4px;
-  scrollbar-width: thin;
-  scrollbar-color: #aaa transparent;
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background-color: #c1c1c1;
-    border-radius: 3px;
-  }
-
-  &::-webkit-scrollbar-thumb:hover {
-    background-color: #a1a1a1;
-  }
-
-  .dark-theme & {
-    scrollbar-color: #555 transparent;
-
-    &::-webkit-scrollbar-thumb {
-      background-color: #555;
-    }
-
-    &::-webkit-scrollbar-thumb:hover {
-      background-color: #777;
-    }
-  }
-}
-
-.emoji-option {
-  font-size: 1.2rem;
-  text-align: center;
-  cursor: pointer;
-  padding: 4px 2px;
-  border-radius: 6px;
-  line-height: 1.4;
-  user-select: none;
-  transition: background-color 0.1s, transform 0.1s;
-
-  &:hover {
-    background-color: #eaecef;
-    transform: scale(1.15);
-  }
-
-  &:active {
-    transform: scale(0.95);
-  }
-
-  .dark-theme &:hover {
-    background-color: #30363d;
-  }
-}
-
-.emoji-active {
-  background-color: #28a745 !important;
-
-  .dark-theme & {
-    background-color: #28a745 !important;
-  }
-}
-
-/* 底部 */
-.emoji-picker-footer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid #eaecef;
-
-  .dark-theme & {
-    border-top-color: #30363d;
-  }
-}
-
-.emoji-preview {
-  font-size: 1.2rem;
-  margin-left: auto;
-}
-
-.emoji-preview-muted {
-  font-size: 0.85rem;
-  color: #aaa;
-  margin-left: auto;
-}
-
-.emoji-clear-btn {
-  font-size: 0.75rem;
-  padding: 3px 10px;
-  border: 1px solid #dee2e6;
-  background: transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  color: #6c757d;
-
-  &:hover {
-    background-color: #dc3545;
-    color: #fff;
-    border-color: #dc3545;
-  }
 }
 </style>

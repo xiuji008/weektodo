@@ -41,11 +41,11 @@ function create_todo(vue, list_id, text, checked, desc = "", subTaskList = [], c
         subTaskList: subTaskList,
         color: color,
         priority: 0,
+        priorityLevel: "L3",
         tags: [],
         time: time,
         alarm: false,
         repeatingEvent: null,
-        emoji: "",
         status: checked ? "done" : "pending",
     }
     vue.$store.commit('addTodo', newTodo);
