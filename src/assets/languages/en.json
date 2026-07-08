@@ -266,7 +266,7 @@
     "aiTodoGenerate": "Generate Todos",
     "aiTodoUse": "Apply to Calendar",
     "aiTodoEmpty": "Describe your week's plans, AI will generate todos for you",
-    "aiTodoPreview": "AI Generated Todos ({{count}} items)",
+    "aiTodoPreview": "AI Generated Todos ({count} items)",
     "open": "Open",
     "quit": "Quit",
     "copyTasks": "Copy Tasks",
