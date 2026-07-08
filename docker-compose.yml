@@ -1,7 +1,6 @@
 services:
   weektodo:
-    build: .
-    image: registry.cn-hangzhou.aliyuncs.com/xj_lew/weektodo:latest
+    image: registry.cn-hangzhou.aliyuncs.com/xj_lew/weektodo:3.0.0
     container_name: weektodo
     restart: unless-stopped
     ports:
