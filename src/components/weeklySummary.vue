@@ -169,6 +169,10 @@
                   :placeholder="$t('ui.aiTodoPlaceholder')"
                   rows="5"
                 ></textarea>
+                <!-- 错误提示 -->
+                <div v-if="aiTodoError" class="ai-todo-error alert alert-danger py-2 px-3 mb-2 small" role="alert">
+                  <i class="bi-exclamation-triangle me-1"></i>{{ aiTodoError }}
+                </div>
                 <div class="ai-todo-actions-top">
                   <button
                     type="button"
@@ -301,6 +305,7 @@ export default {
       aiTodoRaw: "",
       aiTodos: [],
       applying: false,
+      aiTodoError: "",
     };
   },
   computed: {
@@ -431,6 +436,7 @@ export default {
       this.aiTodoGenerating = true;
       this.aiTodoRaw = "";
       this.aiTodos = [];
+      this.aiTodoError = "";
 
       const dateListStr = range.days
         .map((d) => `  - ${d.dayOfWeek} (${d.isoStr}) → dateId: ${d.dateId}`)
@@ -513,7 +519,7 @@ export default {
         onError: (error) => {
           this.aiTodoGenerating = false;
           this.aiTodoRaw = "";
-          alert("AI 生成失败：" + error);
+          this.aiTodoError = "AI 生成失败：" + error;
         },
       });
     },
@@ -549,11 +555,11 @@ export default {
         });
         this.aiTodos = range.days.map((d) => dayMap[d.dateId]).filter((d) => d.tasks.length > 0);
         if (this.aiTodos.length === 0) {
-          alert("AI 返回了有效数据但没有生成任何待办事项，请重新描述");
+          this.aiTodoError = "AI 返回了有效数据但没有生成任何待办事项，请重新描述";
         }
       } catch (e) {
         console.error("解析 AI 待办失败:", e);
-        alert("AI 返回格式有误，无法解析待办事项，请重试或调整描述。错误：" + e.message);
+        this.aiTodoError = "AI 返回格式有误，无法解析待办事项，请重试或调整描述。错误：" + e.message;
       }
     },
 
@@ -563,6 +569,7 @@ export default {
       this.aiTodos = [];
       this.aiTodoInput = "";
       this.applying = false;
+      this.aiTodoError = "";
     },
 
     applyAiTodos() {
